@@ -1,18 +1,18 @@
-﻿module ShinyHttp.CachingHttpClient
+﻿module ShinyHttpCache.CachingHttpClient
 
 open System
 open System.Net.Http.Headers
 open System.Net.Http
 open System.Threading
-open ShinyHttp.Headers.Parser
-open ShinyHttp.Headers.CacheTime
+open ShinyHttpCache.Headers.Parser
+open ShinyHttpCache.Headers.CacheTime
 open ReaderMonad
 
 type ICache =
-    abstract member Get : string -> (HttpResponseMessage * DateTime) option Async
-    abstract member Put : (string * HttpResponseMessage * DateTime) -> unit Async
-    abstract member Invalidate : string -> unit Async
-    abstract member BuildUserKey : HttpRequestMessage -> string option
+    abstract member Get : string -> (CachedResponse.CachedResponse * DateTime) option Async
+    abstract member Put : (string * CachedResponse.CachedResponse * DateTime) -> unit Async
+    abstract member Delete : string -> unit Async
+    abstract member BuildUserKey : CachedRequest.CachedRequest -> string option
 
 type ICachingHttpClientDependencies =
     abstract member Cache : ICache
@@ -34,6 +34,8 @@ type ICachingHttpClientDependencies =
 module private Private =
         
     let buildUserCacheKey (uri: Uri) (userKey: string) =
+        // TODO: include http method
+        // TODO: allow custom key build method (e.g. to include headers)
         let userKey = if String.IsNullOrEmpty userKey then "" else userKey
 
         sprintf "$:%s$:%O"
@@ -80,13 +82,13 @@ module private Private =
 
             let userResult = 
                 userKey 
-                |> Option.map (buildUserCacheKey req.RequestUri)
+                |> Option.map (buildUserCacheKey req.Uri)
                 |> Option.map cache.Cache.Get
                 |> traverseAsyncOpt
                 |> asyncMap squashOptions
 
             let sharedResult = 
-                buildSharedCacheKey req.RequestUri
+                buildSharedCacheKey req.Uri
                 |> cache.Cache.Get
 
             async {
@@ -103,11 +105,11 @@ module private Private =
 
     type CacheResult =
         {
-            response: HttpResponseMessage
+            response: CachedResponse.CachedResponse
             //requiresReValidation: bool
         }
 
-    let buildCacheResult (response: HttpResponseMessage, cacheUntil: DateTime) =
+    let buildCacheResult (response: CachedResponse.CachedResponse, cacheUntil: DateTime) =
         // let requiresReValidation =
         //     if cacheUntil < DateTime.UtcNow then
         //         true
@@ -124,7 +126,7 @@ module private Private =
         }
 
     type HttpResponseType =
-        | FromCache of HttpResponseMessage
+        | FromCache of CachedResponse.CachedResponse
         | FromServer of HttpResponseMessage
     //    | ValidatedFromServer of HttpResponseMessage
 
@@ -152,6 +154,8 @@ module private Private =
         |> Reader.Reader
 
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching#Varying_responses
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching#Targets_of_caching_operations
     // https://www.keycdn.com/blog/http-cache-headers
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified
     // https://tools.ietf.org/id/draft-ietf-httpbis-cache-01.html#response.cacheability
@@ -168,17 +172,21 @@ module private Private =
 
     let tryCacheValue  (response: HttpResponseMessage) =
         // TODO: http methods, response codes
+        let req = CachedRequest.build response.RequestMessage
 
         let execute (cache: ICachingHttpClientDependencies) =
 
             let buildCacheKey (x: CacheControlHeaderValue option) =
                 match x with
                 | Some x when x.Private ->
-                    cache.Cache.BuildUserKey response.RequestMessage
-                    |> Option.map (buildUserCacheKey response.RequestMessage.RequestUri)
+                    cache.Cache.BuildUserKey
+                    >> Option.map (buildUserCacheKey response.RequestMessage.RequestUri)
+                    |> asyncMap
+                    <| req
                 | _ ->
                     buildSharedCacheKey response.RequestMessage.RequestUri
                     |> Some
+                    |> asyncRetn
 
             let addToCache (headers: HttpServerCacheHeaders) =
                 let now = DateTime.UtcNow
@@ -189,11 +197,17 @@ module private Private =
                         | x when DateTime.MaxValue - x < now -> Some DateTime.MaxValue
                         | x -> now + x |> Some)
 
-                let key = buildCacheKey headers.CacheControl
+                let cache key =
+                    let cachePut (k, t) =
+                        CachedResponse.build response
+                        |> asyncBind (fun resp -> cache.Cache.Put (k, resp, t))
 
-                combineOptions key cacheUntil
-                |> Option.map (fun (k, t) -> cache.Cache.Put (k, response, t))
-                |> Option.defaultValue asyncUnit
+                    combineOptions key cacheUntil
+                    |> Option.map cachePut
+                    |> Option.defaultValue asyncUnit
+
+                buildCacheKey headers.CacheControl
+                |> asyncBind cache
 
             parse response |> addToCache
 
@@ -201,7 +215,7 @@ module private Private =
         |> ReaderAsync.map (fun () -> response)
 
     let cacheValue = function
-        | FromCache x -> ReaderAsync.retn x
+        | FromCache x -> x |> CachedResponse.toHttpResponseMessage true |> ReaderAsync.retn
         | FromServer x -> tryCacheValue x
      //   | ValidatedFromServer x -> tryCacheValue x
 
@@ -216,7 +230,10 @@ let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToke
         |> Reader.Reader
         |> ReaderAsync.map FromServer
 
-    tryGetCacheResult httpRequest
+    CachedRequest.build httpRequest
+    |> asyncMap Some
+    |> Reader.retn
+    |> ReaderAsyncOption.bind tryGetCacheResult
     |> ReaderAsyncOption.map buildCacheResult
     |> ReaderAsyncOption.bind sendFromInsideCache
     |> ReaderAsyncOption.defaultWith sendFromHttpClient

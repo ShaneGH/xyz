@@ -1,3 +1,4 @@
+using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Control;
 using Microsoft.FSharp.Core;
 using Moq;
@@ -6,10 +7,10 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using static ShinyHttp.CachingHttpClient;
-using AppTestUtils = ShinyHttp.TestUtils;
+using static ShinyHttpCache.CachingHttpClient;
+using AppTestUtils = ShinyHttpCache.TestUtils;
 
-namespace shttp.Tests.TestUtils
+namespace ShinyHttpCache.Tests.TestUtils
 {
     class TestState
     {
@@ -36,32 +37,33 @@ namespace shttp.Tests.TestUtils
 
             dependencies
                 .Setup(x => x.Cache.Get(It.IsAny<string>()))
-                .Returns(FSharpAsync.AwaitTask(Task.FromResult(FSharpOption<Tuple<HttpResponseMessage, DateTime>>.None)));
+                .Returns(FSharpAsync.AwaitTask(Task.FromResult(FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>.None)));
 
             dependencies
-                .Setup(x => x.Cache.Put(It.IsAny<Tuple<string, HttpResponseMessage, DateTime>>()))
+                .Setup(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse, DateTime>>()))
                 .Returns(FSharpAsync.AwaitTask(Task.FromResult(AppTestUtils.unit)));
 
             dependencies
-                .Setup(x => x.Cache.Invalidate(It.IsAny<string>()))
+                .Setup(x => x.Cache.Delete(It.IsAny<string>()))
                 .Returns(FSharpAsync.AwaitTask(Task.FromResult(AppTestUtils.unit)));
 
             dependencies
-                .Setup(x => x.Cache.BuildUserKey(It.IsAny<HttpRequestMessage>()))
-                .Returns<HttpRequestMessage>(GetUserKey);
+                .Setup(x => x.Cache.BuildUserKey(It.IsAny<CachedRequest.CachedRequest>()))
+                .Returns<CachedRequest.CachedRequest>(GetUserKey);
 
             return dependencies;
         }
 
-        private static FSharpOption<string> GetUserKey(HttpRequestMessage msg)
+        private static FSharpOption<string> GetUserKey(CachedRequest.CachedRequest msg)
         {
-            if (!msg.Headers.Contains(UserHeader))
+            if (!msg.Headers.Any(x => x.Key == UserHeader))
             {
                 return FSharpOption<string>.None;
             }
 
             return msg.Headers
-                .GetValues(UserHeader)
+                .Where(x => x.Key == UserHeader)
+                .Select(x => x.Value.FirstOrDefault())
                 .FirstOrDefault() ?? FSharpOption<string>.None;
         }
 
@@ -123,15 +125,23 @@ namespace shttp.Tests.TestUtils
                 .Setup(x => x.Cache.Get(It.Is<string>(k => k == key)))
                 .Returns(Returns);
 
-            FSharpAsync<FSharpOption<Tuple<HttpResponseMessage, DateTime>>> Returns()
+            return response;
+
+            FSharpAsync<FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>> Returns()
             {
-                return FSharpAsync.AwaitTask(
-                    Task.FromResult(
-                        FSharpOption<Tuple<HttpResponseMessage, DateTime>>.Some(
-                            Tuple.Create(response, cahcedUntil))));
+                return FSharpAsync.AwaitTask(ReturnsAsync());
             }
 
-            return response;
+            async Task<FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>> ReturnsAsync()
+            {
+                var resp = await FSharpAsync.StartAsTask(
+                    CachedResponse.build(response), 
+                    FSharpOption<TaskCreationOptions>.None, 
+                    FSharpOption<CancellationToken>.None);
+
+                return FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>
+                    .Some(Tuple.Create(resp, cahcedUntil));
+            }
         }
     }
 }

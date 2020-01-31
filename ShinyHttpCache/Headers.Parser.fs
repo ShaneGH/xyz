@@ -1,4 +1,4 @@
-﻿module ShinyHttp.Headers.Parser
+﻿module ShinyHttpCache.Headers.Parser
 open System
 open System.Net.Http.Headers
 open System.Globalization

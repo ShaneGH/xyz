@@ -1,4 +1,4 @@
-﻿module ShinyHttp.Headers.CacheTime
+﻿module ShinyHttpCache.Headers.CacheTime
 
 open System
 open System.Net.Http.Headers

@@ -1,4 +1,4 @@
-namespace ShinyHttp
+namespace ShinyHttpCache
 open System.Net.Http
 open CachingHttpClient
 

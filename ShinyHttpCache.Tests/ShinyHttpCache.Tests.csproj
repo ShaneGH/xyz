@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.1</TargetFramework>
-
+    <DefaultNamespace>ShinyHttpCache.Tests</DefaultNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\shhtp\shttp.fsproj" />
+    <ProjectReference Include="..\ShinyHttpCache\ShinyHttpCache.fsproj" />
   </ItemGroup>
 
 </Project>

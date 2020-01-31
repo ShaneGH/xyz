@@ -10,9 +10,9 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/shttp.Tests/bin/Debug/netcoreapp2.1/shttp.Tests.dll",
+            "program": "${workspaceFolder}/ShinyHttpCache.Tests/bin/Debug/netcoreapp2.1/ShinyHttpCache.Tests.dll",
             "args": [],
-            "cwd": "${workspaceFolder}/shttp.Tests",
+            "cwd": "${workspaceFolder}/ShinyHttpCache.Tests",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
             "console": "internalConsole",
             "stopAtEntry": false

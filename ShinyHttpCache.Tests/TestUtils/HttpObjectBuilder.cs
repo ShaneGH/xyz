@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Linq;
 using System.Linq.Expressions;
 
-namespace shttp.Tests.TestUtils
+namespace ShinyHttpCache.Tests.TestUtils
 {
     static class HttpObjectBuilder
     {

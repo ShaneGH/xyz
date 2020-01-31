@@ -5,9 +5,9 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
-using static ShinyHttp.Headers.Parser;
+using static ShinyHttpCache.Headers.Parser;
 
-namespace shttp.Tests
+namespace ShinyHttpCache.Tests
 {
     public class ParserTests
     {

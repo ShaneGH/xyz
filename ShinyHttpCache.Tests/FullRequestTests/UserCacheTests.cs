@@ -1,12 +1,12 @@
 using Moq;
 using NUnit.Framework;
-using shttp.Tests.TestUtils;
+using ShinyHttpCache.Tests.TestUtils;
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
 
-namespace shttp.Tests
+namespace ShinyHttpCache.Tests.FullRequestTests
 {
     public class UserCacheTests
     {
@@ -26,11 +26,11 @@ namespace shttp.Tests
             var response = await state.ExecuteRequest(user: "my user");
 
             // assert
-            Predicate<Tuple<string, HttpResponseMessage, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, HttpResponseMessage, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
                 Assert.AreEqual("$:$:http://www.com/", input.Item1);
                 return true;
@@ -53,11 +53,11 @@ namespace shttp.Tests
             var response = await state.ExecuteRequest(user: "my user");
 
             // assert
-            Predicate<Tuple<string, HttpResponseMessage, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, HttpResponseMessage, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
                 Assert.AreEqual("$:my user$:http://www.com/", input.Item1);
                 return true;
@@ -80,11 +80,11 @@ namespace shttp.Tests
             var response = await state.ExecuteRequest(user: "my$user");
 
             // assert
-            Predicate<Tuple<string, HttpResponseMessage, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, HttpResponseMessage, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
                 Assert.AreEqual("$:my$$user$:http://www.com/", input.Item1);
                 return true;
@@ -135,7 +135,7 @@ namespace shttp.Tests
             var response = await state.ExecuteRequest(user: "my user");
 
             // assert
-            Assert.AreEqual(userResponse, response);
+            await CustomAssert.AssertResponse(2, response);
         }
     }
 }

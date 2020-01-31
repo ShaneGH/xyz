@@ -3,7 +3,7 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace shttp.Tests.TestUtils
+namespace ShinyHttpCache.Tests.TestUtils
 {
     public static class CustomAssert
     {
@@ -21,6 +21,12 @@ namespace shttp.Tests.TestUtils
         {
             var content = await response.Content.ReadAsByteArrayAsync();
             CollectionAssert.AreEqual(content, new [] { expectedContent });
+        }
+
+        public static void AssertCachedResponse(byte expectedContent, CachedResponse.CachedResponse response)
+        {
+            Assert.NotNull(response.Content.Value);
+            CollectionAssert.AreEqual(response.Content.Value.Content, new [] { expectedContent });
         }
     }
 }

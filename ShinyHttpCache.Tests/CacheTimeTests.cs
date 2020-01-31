@@ -2,10 +2,10 @@ using NUnit.Framework;
 using System;
 using System.Net.Http.Headers;
 using Microsoft.FSharp.Core;
-using static ShinyHttp.Headers.Parser;
-using static ShinyHttp.Headers.CacheTime;
+using static ShinyHttpCache.Headers.Parser;
+using static ShinyHttpCache.Headers.CacheTime;
 
-namespace shttp.Tests
+namespace ShinyHttpCache.Tests
 {
     public class CacheTimeTests
     {

@@ -4,12 +4,44 @@ open System
 open System.Collections.Generic
 open System.Net
 open System.Net.Http
+open System.Text
 
-module private Utils =
+module private Private = 
+    let asyncReturn x = async { return x }
+    
+    let asyncMap f x = async { 
+        let! x1 = x
+        return (f x1) 
+    }
+
     let mapHeaderKvp (kvp: KeyValuePair<string, IEnumerable<'a>>) =
         new KeyValuePair<string, 'a list>(kvp.Key, List.ofSeq kvp.Value)
-open System.Text
-open Utils
+
+    let pointerSize = IntPtr.Size
+
+    let measureHeaderSize (h: KeyValuePair<string, string list>) =
+        // header
+        pointerSize 
+        // key
+        + pointerSize + Encoding.UTF8.GetByteCount h.Key
+        // values
+        + pointerSize + List.fold (fun s (v: string) -> s + pointerSize + (Encoding.UTF8.GetByteCount v)) 0 h.Value
+
+    let measureHeadersSize hs =
+        // headers
+        pointerSize 
+        // each header
+        + pointerSize + (List.sumBy measureHeaderSize hs)
+
+    let toOption = function
+        | x when isNull x -> None
+        | x -> Some x
+
+    let invertOpt = function
+        | None -> asyncReturn None
+        | Some x -> asyncMap Some x
+
+open Private
 
 module CachedContent =
 
@@ -17,10 +49,10 @@ module CachedContent =
         inherit HttpContent()
         do for header in headers do this.Headers.Add(header.Key, header.Value)
         
-        override this.SerializeToStreamAsync (stream, _) =
+        override __.SerializeToStreamAsync (stream, _) =
             stream.WriteAsync (content, 0, content.Length)
         
-        override this.TryComputeLength (length) =
+        override __.TryComputeLength (length) =
             length <- content.LongLength
             true
     
@@ -43,12 +75,13 @@ module CachedContent =
         
     let toHttpContent cachedContent =
         new CachedHttpContent (cachedContent.Content, cachedContent.Headers |> Seq.ofList)
+        :> HttpContent
         
-    let getContentLength cachedContent =
-        let contentLength = cachedContent.Content.Length + 8
-        let headerLength =
-            cachedContent.Headers
-            |> List.map (fun x -> Encoding.UTF8.)
+    let getRoughMemorySize cachedContent =
+        let contentLength = cachedContent.Content.Length + pointerSize
+        let headerLength = measureHeadersSize cachedContent.Headers
+
+        contentLength + headerLength
 
 module CachedRequest =
     
@@ -57,14 +90,22 @@ module CachedRequest =
             Version: Version;
             Method: HttpMethod;
             Uri: Uri;
-            Content: CachedContent.CachedContent;
+            Content: CachedContent.CachedContent option;
             Headers: KeyValuePair<string, string list> list;
+            // TODO: how do properties affect cache size
             Properties: KeyValuePair<string, obj> list;
         }
         
+       // TODO: currently this method is called a few times
+       // try to get this down to once
     let build (req: HttpRequestMessage) =
         async {
-            let! c = CachedContent.build req.Content
+            let! c = 
+                req.Content 
+                |> toOption
+                |> Option.map CachedContent.build
+                |> invertOpt
+
             return {
                 Version = req.Version;
                 Method = req.Method;
@@ -83,7 +124,10 @@ module CachedRequest =
         output.Version <- req.Version
         output.Method <- req.Method
         output.RequestUri <- req.Uri
-        output.Content <- CachedContent.toHttpContent req.Content;
+        output.Content <- 
+            req.Content 
+            |> Option.map CachedContent.toHttpContent 
+            |> Option.defaultValue null;
         
         for h in req.Headers do output.Headers.Add(h.Key, h.Value)
         
@@ -99,13 +143,17 @@ module CachedResponse =
             Version: Version;
             StatusCode: HttpStatusCode;
             ReasonPhrase: string;
-            Content: CachedContent.CachedContent;
+            Content: CachedContent.CachedContent option;
             Request: CachedRequest.CachedRequest;
             Headers: KeyValuePair<string, string list> list;
         }
         
     let build (resp: HttpResponseMessage) =
-        let c = CachedContent.build resp.Content
+        let c = 
+            resp.Content 
+            |> toOption 
+            |> Option.map CachedContent.build 
+            |> invertOpt
         let req = CachedRequest.build resp.RequestMessage
         async {
             let! c' = c
@@ -129,8 +177,11 @@ module CachedResponse =
         output.Version <- resp.Version
         output.StatusCode <- resp.StatusCode
         output.ReasonPhrase <- resp.ReasonPhrase
-        output.Content <- CachedContent.toHttpContent resp.Content;
-        output.RequestMessage <- CachedRequest.toHttpRequestMessage mapRequestProperties resp.Request;
+        output.Content <-
+            resp.Content 
+            |> Option.map CachedContent.toHttpContent 
+            |> Option.defaultValue null;
+        output.RequestMessage <- CachedRequest.toHttpRequestMessage mapRequestProperties resp.Request
         
         for h in resp.Headers do output.Headers.Add(h.Key, h.Value)
         

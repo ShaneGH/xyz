@@ -1,13 +1,13 @@
 using Moq;
 using NUnit.Framework;
-using shttp.Tests.TestUtils;
+using ShinyHttpCache.Tests.TestUtils;
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace shttp.Tests
+namespace ShinyHttpCache.Tests.FullRequestTests
 {
     public class BasicReadWriteTests
     {
@@ -24,7 +24,7 @@ namespace shttp.Tests
             // assert
             await CustomAssert.AssertResponse(1, response);
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, HttpResponseMessage, DateTime>>()), Times.Never);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse, DateTime>>()), Times.Never);
         }
 
         [Test]
@@ -42,14 +42,14 @@ namespace shttp.Tests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, HttpResponseMessage, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, HttpResponseMessage, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
                 Assert.AreEqual("$:$:http://www.com/", input.Item1);
-                Assert.AreEqual(response, input.Item2);
+                CustomAssert.AssertCachedResponse(1, input.Item2);
                 CustomAssert.AssertDateAlmost(DateTime.UtcNow.AddDays(1), input.Item3);
                 return true;
             }
@@ -67,11 +67,11 @@ namespace shttp.Tests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, HttpResponseMessage, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, HttpResponseMessage, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
                 CustomAssert.AssertDateAlmost(expectedResponse.Content.Headers.Expires.Value.UtcDateTime, input.Item3);
                 return true;
@@ -97,7 +97,7 @@ namespace shttp.Tests
 
             // assert
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, HttpResponseMessage, DateTime>>()), Times.Never);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse, DateTime>>()), Times.Never);
         }
         
         [Test]
@@ -136,7 +136,7 @@ namespace shttp.Tests
             var response = await state.ExecuteRequest();
 
             // assert
-            Assert.AreEqual(cachedResponse, response);
+            await CustomAssert.AssertResponse(1, response);
             state.Dependencies
                 .Verify(x => x.Send(It.IsAny<Tuple<HttpRequestMessage, CancellationToken>>()), Times.Never);
         }
