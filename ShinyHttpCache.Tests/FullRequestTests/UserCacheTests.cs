@@ -26,11 +26,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest(user: "my user");
 
             // assert
-            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse> input)
             {
                 Assert.AreEqual("G$:$:http://www.com/", input.Item1);
                 return true;
@@ -53,11 +53,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest(user: "my user");
 
             // assert
-            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse> input)
             {
                 Assert.AreEqual("G$:my user$:http://www.com/", input.Item1);
                 return true;
@@ -80,11 +80,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest(user: "my$user");
 
             // assert
-            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse> input)
             {
                 Assert.AreEqual("G$:my$$user$:http://www.com/", input.Item1);
                 return true;

@@ -136,15 +136,17 @@ module CachedResponse =
     
     type CachedResponse =
         {
-            Version: Version;
-            StatusCode: HttpStatusCode;
-            ReasonPhrase: string;
-            Content: CachedContent.CachedContent option;
-            Request: CachedRequest.CachedRequest;
-            Headers: KeyValuePair<string, string list> list;
+            Version: Version
+            StatusCode: HttpStatusCode
+            ReasonPhrase: string
+            Content: CachedContent.CachedContent option
+            Request: CachedRequest.CachedRequest
+            Headers: KeyValuePair<string, string list> list
+            ExpirationDateUtc: DateTime
+            CanBeValidatedAfterExpiration: bool
         }
         
-    let build (resp: HttpResponseMessage) =
+    let build expirationDateUtc canBeValidatedAfterExpiration (resp: HttpResponseMessage) =
         let c = 
             resp.Content 
             |> toOption 
@@ -164,6 +166,8 @@ module CachedResponse =
                    |> Seq.map mapHeaderKvp
                    |> List.ofSeq;
                 Request = r'
+                ExpirationDateUtc = expirationDateUtc
+                CanBeValidatedAfterExpiration = canBeValidatedAfterExpiration
             }
         }
         

@@ -24,7 +24,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             // assert
             await CustomAssert.AssertResponse(1, response);
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse, DateTime>>()), Times.Never);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse>>()), Times.Never);
         }
 
         [Test]
@@ -42,15 +42,15 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse> input)
             {
                 Assert.AreEqual("G$:$:http://www.com/", input.Item1);
                 CustomAssert.AssertCachedResponse(1, input.Item2);
-                CustomAssert.AssertDateAlmost(DateTime.UtcNow.AddDays(1), input.Item3);
+                CustomAssert.AssertDateAlmost(DateTime.UtcNow.AddDays(1), input.Item2.ExpirationDateUtc);
                 return true;
             }
         }
@@ -67,13 +67,16 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachedResponse.CachedResponse, DateTime>> assert = AssertResult;
+            Predicate<Tuple<string, CachedResponse.CachedResponse>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
+            bool AssertResult(Tuple<string, CachedResponse.CachedResponse> input)
             {
-                CustomAssert.AssertDateAlmost(expectedResponse.Content.Headers.Expires.Value.UtcDateTime, input.Item3);
+                CustomAssert.AssertDateAlmost(
+                    expectedResponse.Content.Headers.Expires.Value.UtcDateTime, 
+                    input.Item2.ExpirationDateUtc);
+
                 return true;
             }
         }
@@ -97,7 +100,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             // assert
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse, DateTime>>()), Times.Never);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse>>()), Times.Never);
         }
         
         [Test]

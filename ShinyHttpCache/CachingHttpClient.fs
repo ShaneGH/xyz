@@ -9,8 +9,8 @@ open ShinyHttpCache.Headers.CacheTime
 open ReaderMonad
 
 type ICache =
-    abstract member Get : string -> (CachedResponse.CachedResponse * DateTime) option Async
-    abstract member Put : (string * CachedResponse.CachedResponse * DateTime) -> unit Async
+    abstract member Get : string -> (CachedResponse.CachedResponse) option Async
+    abstract member Put : (string * CachedResponse.CachedResponse) -> unit Async
     abstract member Delete : string -> unit Async
     abstract member BuildUserKey : CachedRequest.CachedRequest -> string option
 
@@ -116,7 +116,7 @@ module private Private =
             //requiresReValidation: bool
         }
 
-    let buildCacheResult (response: CachedResponse.CachedResponse, cacheUntil: DateTime) =
+    let buildCacheResult (response: CachedResponse.CachedResponse) =
         // let requiresReValidation =
         //     if cacheUntil < DateTime.UtcNow then
         //         true
@@ -206,8 +206,8 @@ module private Private =
 
                 let cache key =
                     let cachePut (k, t) =
-                        CachedResponse.build response
-                        |> asyncBind (fun resp -> cache.Cache.Put (k, resp, t))
+                        CachedResponse.build t false response
+                        |> asyncBind (fun resp -> cache.Cache.Put (k, resp))
 
                     combineOptions key cacheUntil
                     |> Option.map cachePut

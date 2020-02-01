@@ -37,10 +37,10 @@ namespace ShinyHttpCache.Tests.TestUtils
 
             dependencies
                 .Setup(x => x.Cache.Get(It.IsAny<string>()))
-                .Returns(FSharpAsync.AwaitTask(Task.FromResult(FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>.None)));
+                .Returns(FSharpAsync.AwaitTask(Task.FromResult(FSharpOption<CachedResponse.CachedResponse>.None)));
 
             dependencies
-                .Setup(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse, DateTime>>()))
+                .Setup(x => x.Cache.Put(It.IsAny<Tuple<string, CachedResponse.CachedResponse>>()))
                 .Returns(FSharpAsync.AwaitTask(Task.FromResult(AppTestUtils.unit)));
 
             dependencies
@@ -132,20 +132,19 @@ namespace ShinyHttpCache.Tests.TestUtils
 
             return response;
 
-            FSharpAsync<FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>> Returns()
+            FSharpAsync<FSharpOption<CachedResponse.CachedResponse>> Returns()
             {
                 return FSharpAsync.AwaitTask(ReturnsAsync());
             }
 
-            async Task<FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>> ReturnsAsync()
+            async Task<FSharpOption<CachedResponse.CachedResponse>> ReturnsAsync()
             {
                 var resp = await FSharpAsync.StartAsTask(
-                    CachedResponse.build(response), 
+                    CachedResponse.build(cahcedUntil, false, response), 
                     FSharpOption<TaskCreationOptions>.None, 
                     FSharpOption<CancellationToken>.None);
 
-                return FSharpOption<Tuple<CachedResponse.CachedResponse, DateTime>>
-                    .Some(Tuple.Create(resp, cahcedUntil));
+                return FSharpOption<CachedResponse.CachedResponse>.Some(resp);
             }
         }
     }
