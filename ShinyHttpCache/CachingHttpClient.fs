@@ -32,17 +32,24 @@ type ICachingHttpClientDependencies =
 // Last-Modified
 
 module private Private =
+    let private getMethodKey (method: HttpMethod) =
+        match method with
+        | x when x = HttpMethod.Get -> "G"
+        // TODO, more methods (especially put with etag)
+        | _ -> NotSupportedException "Only GET methods are supported for caching" |> raise
         
-    let buildUserCacheKey (uri: Uri) (userKey: string) =
+    let buildUserCacheKey method (uri: Uri) (userKey: string) =
         // TODO: include http method
         // TODO: allow custom key build method (e.g. to include headers)
         let userKey = if String.IsNullOrEmpty userKey then "" else userKey
+        let m = getMethodKey method
 
-        sprintf "$:%s$:%O"
+        sprintf "%s$:%s$:%O"
+        <| m
         <| userKey.Replace("$", "$$")
         <| uri
 
-    let buildSharedCacheKey (uri: Uri) = buildUserCacheKey uri ""
+    let buildSharedCacheKey method (uri: Uri) = buildUserCacheKey method uri ""
 
     let traverseAsyncOpt input =
         async {
@@ -82,13 +89,13 @@ module private Private =
 
             let userResult = 
                 userKey 
-                |> Option.map (buildUserCacheKey req.Uri)
+                |> Option.map (buildUserCacheKey req.Method req.Uri)
                 |> Option.map cache.Cache.Get
                 |> traverseAsyncOpt
                 |> asyncMap squashOptions
 
             let sharedResult = 
-                buildSharedCacheKey req.Uri
+                buildSharedCacheKey req.Method req.Uri
                 |> cache.Cache.Get
 
             async {
@@ -180,11 +187,11 @@ module private Private =
                 match x with
                 | Some x when x.Private ->
                     cache.Cache.BuildUserKey
-                    >> Option.map (buildUserCacheKey response.RequestMessage.RequestUri)
+                    >> Option.map (buildUserCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri)
                     |> asyncMap
                     <| req
                 | _ ->
-                    buildSharedCacheKey response.RequestMessage.RequestUri
+                    buildSharedCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri
                     |> Some
                     |> asyncRetn
 

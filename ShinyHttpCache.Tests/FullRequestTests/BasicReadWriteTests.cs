@@ -48,7 +48,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
-                Assert.AreEqual("$:$:http://www.com/", input.Item1);
+                Assert.AreEqual("G$:$:http://www.com/", input.Item1);
                 CustomAssert.AssertCachedResponse(1, input.Item2);
                 CustomAssert.AssertDateAlmost(DateTime.UtcNow.AddDays(1), input.Item3);
                 return true;
@@ -119,7 +119,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             bool AssertResult(string input)
             {
-                Assert.AreEqual("$:$:http://www.com/", input);
+                Assert.AreEqual("G$:$:http://www.com/", input);
                 return true;
             }
         }

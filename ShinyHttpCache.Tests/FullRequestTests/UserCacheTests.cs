@@ -32,7 +32,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
-                Assert.AreEqual("$:$:http://www.com/", input.Item1);
+                Assert.AreEqual("G$:$:http://www.com/", input.Item1);
                 return true;
             }
         }
@@ -59,7 +59,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
-                Assert.AreEqual("$:my user$:http://www.com/", input.Item1);
+                Assert.AreEqual("G$:my user$:http://www.com/", input.Item1);
                 return true;
             }
         }
@@ -86,7 +86,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             bool AssertResult(Tuple<string, CachedResponse.CachedResponse, DateTime> input)
             {
-                Assert.AreEqual("$:my$$user$:http://www.com/", input.Item1);
+                Assert.AreEqual("G$:my$$user$:http://www.com/", input.Item1);
                 return true;
             }
         }
@@ -113,12 +113,12 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             bool AssertShared(string input)
             {
-                return "$:$:http://www.com/" == input;
+                return "G$:$:http://www.com/" == input;
             }
 
             bool AssertUser(string input)
             {
-                return "$:my user$:http://www.com/" == input;
+                return "G$:my user$:http://www.com/" == input;
             }
         }
 

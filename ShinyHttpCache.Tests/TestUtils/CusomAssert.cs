@@ -20,7 +20,7 @@ namespace ShinyHttpCache.Tests.TestUtils
         public static async Task AssertResponse(byte expectedContent, HttpResponseMessage response)
         {
             var content = await response.Content.ReadAsByteArrayAsync();
-            CollectionAssert.AreEqual(content, new [] { expectedContent });
+            CollectionAssert.AreEqual(new[] { expectedContent }, content);
         }
 
         public static void AssertCachedResponse(byte expectedContent, CachedResponse.CachedResponse response)

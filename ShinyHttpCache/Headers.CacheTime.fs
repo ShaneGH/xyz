@@ -42,10 +42,10 @@ module private Private =
         | x when hasImmutable.IsMatch x -> true
         | _ -> false
 
-    let cacheControlFilter sharedCache (cacheControl: CacheControlHeaderValue) =
+    let cacheControlFilter (cacheControl: CacheControlHeaderValue) =
 
         let noStore () = match cacheControl.NoStore with | true -> Some TimeSpan.Zero | false -> None
-        let sMaxAge () = getSharedMaxAge sharedCache cacheControl
+        let sMaxAge () = getSharedMaxAge <| not cacheControl.Private <| cacheControl
         let maxAge () = nullableToOption cacheControl.MaxAge
         let immutable () = match isImmutable cacheControl with true -> Some TimeSpan.MaxValue | false -> None
                
@@ -66,7 +66,7 @@ open Private
 
 let getCacheTime (headers: Parser.HttpServerCacheHeaders) =
 
-    let cacheControl () = headers.CacheControl |> Option.bind (cacheControlFilter headers.SharedCache)
+    let cacheControl () = headers.CacheControl |> Option.bind cacheControlFilter
 
     let expires () = headers.ExipiresUtc |> Option.map (fun x -> x - DateTime.UtcNow)
 

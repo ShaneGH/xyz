@@ -108,7 +108,8 @@ namespace ShinyHttpCache.Tests.TestUtils
             string url = "http://www.com",
             string user = null,
             byte? addRequestContent = null,
-            byte? addResponseContent = null)
+            byte? addResponseContent = null,
+            HttpMethod method = null)
         {
             cahcedUntil = new DateTime(cahcedUntil.Ticks, DateTimeKind.Utc);
             var response = new HttpResponseMessage();
@@ -118,8 +119,12 @@ namespace ShinyHttpCache.Tests.TestUtils
             if (addResponseContent != null)
                 response.Content = new SingleByteContent(addResponseContent.Value);
 
+            var m = (method == null|| method == HttpMethod.Get) ? "G" : null;
+            if (m == null)
+                throw new NotSupportedException(method?.ToString() ?? "null");
+
             user = user?.Replace("$", "$$");
-            var key = $"$:{user}$:{new Uri(url)}";
+            var key = $"{m}$:{user}$:{new Uri(url)}";
 
             Dependencies
                 .Setup(x => x.Cache.Get(It.Is<string>(k => k == key)))

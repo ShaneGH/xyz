@@ -40,7 +40,6 @@ open Private1
 type HttpServerCacheHeaders =
     {
         CacheControl: CacheControlHeaderValue option
-        SharedCache: bool
         Pragma: string option
         ETag: EntityTagHeaderValue option
         ExipiresUtc: DateTime option
@@ -53,7 +52,6 @@ module private Private2 =
     let parseHeaders (headers: HttpResponseHeaders) expires lastModified =
 
         {
-            SharedCache = true // TODO implement private cache
             CacheControl = nullToNone headers.CacheControl
             Pragma = None // TODO
             ExipiresUtc = expires

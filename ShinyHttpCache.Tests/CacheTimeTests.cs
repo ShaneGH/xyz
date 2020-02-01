@@ -11,7 +11,7 @@ namespace ShinyHttpCache.Tests
     {
         private HttpServerCacheHeaders BuildHeaders(
                 bool cacheControlIsNull = false, 
-                bool sharedCache = true, 
+                bool privateCache = false, 
                 bool noStore = false,
                 bool immutable = false,
                 TimeSpan? maxAge = null,
@@ -31,11 +31,11 @@ namespace ShinyHttpCache.Tests
                 cacheControl.NoStore = noStore;
                 cacheControl.MaxAge = maxAge;
                 cacheControl.SharedMaxAge = sMaxAge;
+                cacheControl.Private = privateCache;
             }
 
             return new HttpServerCacheHeaders(
                 cacheControl ?? FSharpOption<CacheControlHeaderValue>.None, 
-                sharedCache,
                 pragma ?? FSharpOption<string>.None,
                 eTag ?? FSharpOption<EntityTagHeaderValue>.None,
                 exipiresUtc ?? FSharpOption<DateTime>.None, 
@@ -97,7 +97,7 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                sharedCache: false,
+                privateCache: true,
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2),
                 exipiresUtc: DateTime.UtcNow.AddDays(3));

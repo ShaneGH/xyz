@@ -81,7 +81,7 @@ module CachedContent =
         let contentLength = cachedContent.Content.Length + pointerSize
         let headerLength = measureHeadersSize cachedContent.Headers
 
-        contentLength + headerLength
+        pointerSize + contentLength + headerLength
 
 module CachedRequest =
     
@@ -99,24 +99,20 @@ module CachedRequest =
        // TODO: currently this method is called a few times
        // try to get this down to once
     let build (req: HttpRequestMessage) =
-        async {
-            let! c = 
-                req.Content 
-                |> toOption
-                |> Option.map CachedContent.build
-                |> invertOpt
-
-            return {
-                Version = req.Version;
-                Method = req.Method;
-                Uri = req.RequestUri;
-                Content = c;
-                Headers = req.Headers
-                   |> Seq.map mapHeaderKvp
-                   |> List.ofSeq;
-                Properties = req.Properties |> List.ofSeq;
-            }
-        }
+        req.Content 
+        |> toOption
+        |> Option.map CachedContent.build
+        |> invertOpt
+        |> asyncMap (fun c -> {
+            Version = req.Version;
+            Method = req.Method;
+            Uri = req.RequestUri;
+            Content = c;
+            Headers = req.Headers
+                |> Seq.map mapHeaderKvp
+                |> List.ofSeq;
+            Properties = req.Properties |> List.ofSeq;
+        })
         
     let toHttpRequestMessage mapProperties req =
         let output = new HttpRequestMessage ()
