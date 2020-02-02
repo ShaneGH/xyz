@@ -142,11 +142,11 @@ module CachedResponse =
             Content: CachedContent.CachedContent option
             Request: CachedRequest.CachedRequest
             Headers: KeyValuePair<string, string list> list
-            ExpirationDateUtc: DateTime
-            CanBeValidatedAfterExpiration: bool
+            // ExpirationDateUtc: DateTime
+            // CanBeValidatedAfterExpiration: bool
         }
         
-    let build expirationDateUtc canBeValidatedAfterExpiration (resp: HttpResponseMessage) =
+    let build (resp: HttpResponseMessage) = // expirationDateUtc canBeValidatedAfterExpiration (resp: HttpResponseMessage) =
         let c = 
             resp.Content 
             |> toOption 
@@ -156,7 +156,7 @@ module CachedResponse =
         async {
             let! c' = c
             let! r' = req
-            
+
             return {
                 Version = resp.Version;
                 StatusCode = resp.StatusCode;
@@ -166,8 +166,8 @@ module CachedResponse =
                    |> Seq.map mapHeaderKvp
                    |> List.ofSeq;
                 Request = r'
-                ExpirationDateUtc = expirationDateUtc
-                CanBeValidatedAfterExpiration = canBeValidatedAfterExpiration
+                // ExpirationDateUtc = expirationDateUtc
+                // CanBeValidatedAfterExpiration = canBeValidatedAfterExpiration
             }
         }
         

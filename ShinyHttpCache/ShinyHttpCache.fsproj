@@ -10,6 +10,7 @@
     <Compile Include="ReaderMonad.fs" />
     <Compile Include="Headers.Parser.fs" />
     <Compile Include="Headers.CacheTime.fs" />
+    <Compile Include="Headers.CacheSettings.fs" />
     <Compile Include="Structures.fs" />
     <Compile Include="CachingHttpClient.fs" />
     <Compile Include="CacheHttpMessageHandler.fs" />

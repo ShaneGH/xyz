@@ -6,11 +6,26 @@ open System.Net.Http
 open System.Threading
 open ShinyHttpCache.Headers.Parser
 open ShinyHttpCache.Headers.CacheTime
+open ShinyHttpCache.Headers.CacheSettings
 open ReaderMonad
+open System.Collections.Generic
+
+
+type CacheSettings =
+    {
+        ExpirySettings: ExpirySettings
+        PublicCache: bool
+    }
+
+type CachedValues =
+    {
+        HttpResponse: CachedResponse.CachedResponse
+        CacheSettings: CacheSettings
+    }
 
 type ICache =
-    abstract member Get : string -> (CachedResponse.CachedResponse) option Async
-    abstract member Put : (string * CachedResponse.CachedResponse) -> unit Async
+    abstract member Get : string -> CachedValues option Async
+    abstract member Put : (string * CachedValues) -> unit Async
     abstract member Delete : string -> unit Async
     abstract member BuildUserKey : CachedRequest.CachedRequest -> string option
 
@@ -110,6 +125,17 @@ module private Private =
 
         Reader.Reader execute
 
+    let isCacheControl (x: KeyValuePair<string, string list>) = "Cache-Control".Equals(x.Key, StringComparison.InvariantCultureIgnoreCase)
+
+    let getCacheControl =
+        Seq.ofList
+        >> Seq.filter isCacheControl
+        >> Seq.fold (fun s x -> List.concat [s; x.Value] ) []
+        >> Seq.map CacheControlHeaderValue.TryParse
+        >> Seq.filter (fun (x, _) -> x)
+        >> Seq.map (fun (_, x) -> x)
+        >> Seq.tryHead
+
     type CacheResult =
         {
             response: CachedResponse.CachedResponse
@@ -118,14 +144,27 @@ module private Private =
 
     let buildCacheResult (response: CachedResponse.CachedResponse) =
         // let requiresReValidation =
-        //     if cacheUntil < DateTime.UtcNow then
-        //         true
+              
+        //     let cacheControl = lazy getCacheControl response.Headers
+        //     let conditions =
+        //         [|
+        //             fun () -> response.ExpirationDateUtc >= DateTime.UtcNow
+        //             fun () ->
+        //                 let cacheControl = 
+        //                 cacheControl.Value.MustRevalidate
+        //                 response.Headers
+        //                 |> Option.bind (fun x -> x)
+        //         |]
+
+        //     if response.ExpirationDateUtc < DateTime.UtcNow then
+        //         false
         //     else if isNull response.Headers || isNull response.Headers.CacheControl then
         //         false
         //     else if response.Headers.CacheControl.Private then
         //         response.Headers.CacheControl.MustRevalidate
         //     else
         //         response.Headers.CacheControl.MustRevalidate || response.Headers.CacheControl.ProxyRevalidate
+           
 
         {
             response = response
@@ -171,6 +210,7 @@ module private Private =
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Match
     // https://blog.bigbinary.com/2016/03/08/rails-5-switches-from-strong-etags-to-weak-tags.html
+    // proxy-revalidate header ???
 
     let combineOptions o1 o2 =
         match o1, o2 with
@@ -195,26 +235,27 @@ module private Private =
                     |> Some
                     |> asyncRetn
 
-            let addToCache (headers: HttpServerCacheHeaders) =
-                let now = DateTime.UtcNow
-                let cacheUntil = 
-                    getCacheTime headers
-                    |> Option.bind (function
-                        | x when x <= TimeSpan.Zero -> None
-                        | x when DateTime.MaxValue - x < now -> Some DateTime.MaxValue
-                        | x -> now + x |> Some)
+            let addToCache (headers: HttpServerCacheHeaders): Unit Async =
+                NotImplementedException("#######") |> raise
+                // let now = DateTime.UtcNow
+                // let expirySettings = 
+                //     getCacheTime headers
+                //     |> Option.bind (function
+                //         | x when x <= TimeSpan.Zero -> None
+                //         | x when DateTime.MaxValue - x < now -> Some DateTime.MaxValue
+                //         | x -> now + x |> Some)
 
-                let cache key =
-                    let cachePut (k, t) =
-                        CachedResponse.build t false response
-                        |> asyncBind (fun resp -> cache.Cache.Put (k, resp))
+                // let cache key =
+                //     let cachePut (k, t) =
+                //         CachedResponse.build response
+                //         |> asyncBind (fun resp -> cache.Cache.Put (k, resp))
 
-                    combineOptions key cacheUntil
-                    |> Option.map cachePut
-                    |> Option.defaultValue asyncUnit
+                //     combineOptions key cacheUntil
+                //     |> Option.map cachePut
+                //     |> Option.defaultValue asyncUnit
 
-                buildCacheKey headers.CacheControl
-                |> asyncBind cache
+                // buildCacheKey headers.CacheControl
+                // |> asyncBind cache
 
             parse response |> addToCache
 
@@ -228,20 +269,21 @@ module private Private =
 
 open Private
 
-let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToken) =
+let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToken): Reader.Reader<ICachingHttpClientDependencies, HttpResponseMessage Async> =
+                NotImplementedException("#######") |> raise
     
-    let sendFromInsideCache = sendHttpRequest (httpRequest, cancellationToken)
-    let sendFromHttpClient () = 
-        fun (cache: ICachingHttpClientDependencies) ->
-            cache.Send (httpRequest, cancellationToken)
-        |> Reader.Reader
-        |> ReaderAsync.map FromServer
+    // let sendFromInsideCache = sendHttpRequest (httpRequest, cancellationToken)
+    // let sendFromHttpClient () = 
+    //     fun (cache: ICachingHttpClientDependencies) ->
+    //         cache.Send (httpRequest, cancellationToken)
+    //     |> Reader.Reader
+    //     |> ReaderAsync.map FromServer
 
-    CachedRequest.build httpRequest
-    |> asyncMap Some
-    |> Reader.retn
-    |> ReaderAsyncOption.bind tryGetCacheResult
-    |> ReaderAsyncOption.map buildCacheResult
-    |> ReaderAsyncOption.bind sendFromInsideCache
-    |> ReaderAsyncOption.defaultWith sendFromHttpClient
-    |> ReaderAsync.bind cacheValue
+    // CachedRequest.build httpRequest
+    // |> asyncMap Some
+    // |> Reader.retn
+    // |> ReaderAsyncOption.bind tryGetCacheResult
+    // |> ReaderAsyncOption.map buildCacheResult
+    // |> ReaderAsyncOption.bind sendFromInsideCache
+    // |> ReaderAsyncOption.defaultWith sendFromHttpClient
+    // |> ReaderAsync.bind cacheValue

@@ -1,3 +1,4 @@
+using Microsoft.FSharp.Core;
 using NUnit.Framework;
 using System;
 using System.Net.Http;
@@ -27,6 +28,23 @@ namespace ShinyHttpCache.Tests.TestUtils
         {
             Assert.NotNull(response.Content.Value);
             CollectionAssert.AreEqual(response.Content.Value.Content, new [] { expectedContent });
+        }
+
+        public static T IsSome<T>(FSharpOption<T> value)
+        {
+            Assert.True(FSharpOption<T>.get_IsSome(value));
+            return value.Value;
+        }
+
+        public static void IsNone<T>(FSharpOption<T> value)
+        {
+            Assert.False(FSharpOption<T>.get_IsNone(value));
+        }
+
+        public static void Roughly(DateTime dt1, DateTime dt2)
+        {
+            Assert.Less(dt1, dt2.AddSeconds(2));
+            Assert.Greater(dt1, dt2.AddSeconds(-2));
         }
     }
 }
