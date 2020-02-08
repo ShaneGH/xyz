@@ -38,6 +38,12 @@ type ExpirySettings =
     | Soft of RevalidationSettings
     | HardUtc of DateTime
 
+type CacheSettings =
+    {
+        ExpirySettings: ExpirySettings
+        SharedCache: bool
+    }
+
 module Private =
 
     let nullableToOption (x: Nullable<'a>) = match x.HasValue with | true -> Some x.Value | false -> None
@@ -74,17 +80,20 @@ module Private =
             >> Option.map (fun x -> x.SharedMaxAge)
             >> Option.bind nullableToOption
 
-    module ExpirySettings =
+    module SharedCache =
 
-        let private isSharedCache = function
+        let get = function
             | Some (headers: CacheControlHeaderValue) -> not headers.Private
             | None -> true
 
+    module ExpirySettings =
+
         let get requestTime (headers: Parser.HttpServerCacheHeaders) =
+            let publicCache = SharedCache.get headers.CacheControl
             let eTag = ETagValues.get headers
             let expires = Expires.get headers
             let age =
-                match isSharedCache headers.CacheControl with
+                match publicCache with
                 | false -> MaxAge.get headers
                 | true -> 
                     match SMaxAge.get headers with
@@ -136,6 +145,7 @@ module Private =
                 }
                 |> Soft
                 |> Some
+            |> Option.map (fun x -> { ExpirySettings = x; SharedCache = publicCache })
 
     let pickFirstValue =
         Seq.ofArray
@@ -157,11 +167,27 @@ let build (headers: Parser.HttpServerCacheHeaders) =
     // TODO: find actual request time
     let requestTime = DateTime.UtcNow
 
+    let convertToCacheSettings expirySettings =
+        {
+            ExpirySettings = expirySettings
+            SharedCache = SharedCache.get headers.CacheControl
+        }
+
     [|
-        fun () -> headers.CacheControl |> Option.bind (NoStore.get requestTime)
+        // check no store
+        fun () -> 
+            headers.CacheControl 
+            |> Option.bind (NoStore.get requestTime)
+            |> Option.map convertToCacheSettings
+
+        // check other headers
         fun () -> headers |> ExpirySettings.get requestTime
 
         // TODO: move this to 1st priority when https://tools.ietf.org/html/rfc8246 becomes "Proposed Standard"
-        fun () -> headers.CacheControl |> Option.bind Immutable.get
+        // check immutable header
+        fun () -> 
+            headers.CacheControl 
+            |> Option.bind Immutable.get
+            |> Option.map convertToCacheSettings
     |]
     |> pickFirstValue

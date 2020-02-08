@@ -5,17 +5,10 @@ open System.Net.Http.Headers
 open System.Net.Http
 open System.Threading
 open ShinyHttpCache.Headers.Parser
-open ShinyHttpCache.Headers.CacheTime
 open ShinyHttpCache.Headers.CacheSettings
 open ReaderMonad
 open System.Collections.Generic
-
-
-type CacheSettings =
-    {
-        ExpirySettings: ExpirySettings
-        PublicCache: bool
-    }
+open System.Net
 
 type CachedValues =
     {
@@ -136,64 +129,54 @@ module private Private =
         >> Seq.map (fun (_, x) -> x)
         >> Seq.tryHead
 
-    type CacheResult =
-        {
-            response: CachedResponse.CachedResponse
-            //requiresReValidation: bool
-        }
-
-    let buildCacheResult (response: CachedResponse.CachedResponse) =
-        // let requiresReValidation =
-              
-        //     let cacheControl = lazy getCacheControl response.Headers
-        //     let conditions =
-        //         [|
-        //             fun () -> response.ExpirationDateUtc >= DateTime.UtcNow
-        //             fun () ->
-        //                 let cacheControl = 
-        //                 cacheControl.Value.MustRevalidate
-        //                 response.Headers
-        //                 |> Option.bind (fun x -> x)
-        //         |]
-
-        //     if response.ExpirationDateUtc < DateTime.UtcNow then
-        //         false
-        //     else if isNull response.Headers || isNull response.Headers.CacheControl then
-        //         false
-        //     else if response.Headers.CacheControl.Private then
-        //         response.Headers.CacheControl.MustRevalidate
-        //     else
-        //         response.Headers.CacheControl.MustRevalidate || response.Headers.CacheControl.ProxyRevalidate
-           
-
-        {
-            response = response
-            //requiresReValidation = requiresReValidation
-        }
-
     type HttpResponseType =
         | FromCache of CachedResponse.CachedResponse
         | FromServer of HttpResponseMessage
-    //    | ValidatedFromServer of HttpResponseMessage
+        | Hybrid of (CachedResponse.CachedResponse * HttpResponseMessage)
 
-    // let addValidationHeaders (request: HttpRequestMessage) (cachedResponse: HttpResponseMessage) = 
-    //     if isNull cachedResponse.Headers then request
-    //     else
-    //         request.Headers.IfNoneMatch.Add cachedResponse.Headers.ETag
-    //         if isNull cachedResponse.Content then ()
-    //         else request.Headers.IfModifiedSince <- cachedResponse.Content.Headers.LastModified
-    //         request
+    let toEntityTagHeader = function
+        | Strong x -> EntityTagHeaderValue(x, false)
+        | Weak x -> EntityTagHeaderValue(x, true)
 
-    let sendHttpRequest (request, token) cacheResult =
+    let rec addValidationHeaders (request: HttpRequestMessage) = function
+        | ETag x -> 
+            toEntityTagHeader x
+            |> request.Headers.IfNoneMatch.Add
+        | ExpirationDateUtc x ->
+            let expired = DateTimeOffset x |> Nullable<DateTimeOffset>
+            request.Headers.IfModifiedSince <- expired
+        | Both (x, y) -> 
+            ETag x |> addValidationHeaders request
+            ExpirationDateUtc y |> addValidationHeaders request
+
+    type CacheBehavior =
+        | Req of HttpRequestMessage
+        | ReqWithValidation of (HttpRequestMessage * CachedResponse.CachedResponse)
+        | Resp of CachedResponse.CachedResponse
+
+    let sendHttpRequest (request, token) (cacheResult: CachedValues) =
+        let cacheBehavior =
+            match cacheResult.CacheSettings.ExpirySettings with
+            | NoExpiryDate -> Resp cacheResult.HttpResponse
+            | HardUtc exp when exp > DateTime.UtcNow -> Resp cacheResult.HttpResponse
+            | Soft s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult.HttpResponse
+            | HardUtc _ -> Req request
+            | Soft s ->
+                addValidationHeaders request s.Validator
+                ReqWithValidation (request, cacheResult.HttpResponse)
+
         let execute (cache: ICachingHttpClientDependencies) =
-            let addCachedContent result = result
-            
-            // if cacheResult.requiresReValidation then
-            //     let request = addValidationHeaders request cacheResult.response
-            //     cache.Send (request, token)
-            //     |> asyncMap ValidatedFromServer //TODO if 304 add content from cache, if 200 add content to cache
-            // else
-            cacheResult.response |> FromCache |> asyncRetn
+            match cacheBehavior with
+            | Resp x -> 
+                FromCache x
+                |> asyncRetn
+            | ReqWithValidation (req, cachedResp) ->
+                cache.Send (req, token)
+                |> asyncMap (fun resp -> (cachedResp, resp))
+                |> asyncMap Hybrid
+            | Req x ->
+                cache.Send (x, token)
+                |> asyncMap FromServer
         
         execute
         >> asyncMap Some
@@ -235,55 +218,66 @@ module private Private =
                     |> Some
                     |> asyncRetn
 
-            let addToCache (headers: HttpServerCacheHeaders): Unit Async =
-                NotImplementedException("#######") |> raise
-                // let now = DateTime.UtcNow
-                // let expirySettings = 
-                //     getCacheTime headers
-                //     |> Option.bind (function
-                //         | x when x <= TimeSpan.Zero -> None
-                //         | x when DateTime.MaxValue - x < now -> Some DateTime.MaxValue
-                //         | x -> now + x |> Some)
+            let addToCache (headers: HttpServerCacheHeaders) =
+                let expirySettings = build headers
 
-                // let cache key =
-                //     let cachePut (k, t) =
-                //         CachedResponse.build response
-                //         |> asyncBind (fun resp -> cache.Cache.Put (k, resp))
+                let cache key =
+                    let cachePut (k, settings) =
+                        CachedResponse.build response
+                        |> asyncBind (fun resp -> cache.Cache.Put (k, { HttpResponse = resp; CacheSettings = settings  }))
 
-                //     combineOptions key cacheUntil
-                //     |> Option.map cachePut
-                //     |> Option.defaultValue asyncUnit
+                    combineOptions key expirySettings
+                    |> Option.map cachePut
+                    |> Option.defaultValue asyncUnit
 
-                // buildCacheKey headers.CacheControl
-                // |> asyncBind cache
+                buildCacheKey headers.CacheControl
+                |> asyncBind cache
 
             parse response |> addToCache
 
         Reader.Reader execute
         |> ReaderAsync.map (fun () -> response)
+       
+    let toNull = function
+        | Some x -> x
+        | None -> null
 
-    let cacheValue = function
-        | FromCache x -> x |> CachedResponse.toHttpResponseMessage true |> ReaderAsync.retn
+    let combine (cacheResponse: CachedResponse.CachedResponse) (serviceResponse: HttpResponseMessage) =
+        let cachedContent = 
+            cacheResponse.Content
+            |> Option.map CachedContent.toHttpContent
+            |> toNull
+
+        serviceResponse.Content <- cachedContent
+        serviceResponse
+
+    let combineCacheResult (cacheResponse: CachedResponse.CachedResponse, serviceResponse: HttpResponseMessage): Reader.Reader<'a, HttpResponseType Async> =
+        match serviceResponse.StatusCode with
+        | HttpStatusCode.NotModified -> combine cacheResponse serviceResponse 
+        | _ -> serviceResponse 
+        |> FromServer
+        |> ReaderAsync.retn
+
+    let rec cacheValue = function
+        | Hybrid x -> combineCacheResult x |> ReaderAsync.bind cacheValue
+        | FromCache x -> CachedResponse.toHttpResponseMessage true x |> ReaderAsync.retn
         | FromServer x -> tryCacheValue x
-     //   | ValidatedFromServer x -> tryCacheValue x
 
 open Private
 
-let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToken): Reader.Reader<ICachingHttpClientDependencies, HttpResponseMessage Async> =
-                NotImplementedException("#######") |> raise
+let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToken) =
     
-    // let sendFromInsideCache = sendHttpRequest (httpRequest, cancellationToken)
-    // let sendFromHttpClient () = 
-    //     fun (cache: ICachingHttpClientDependencies) ->
-    //         cache.Send (httpRequest, cancellationToken)
-    //     |> Reader.Reader
-    //     |> ReaderAsync.map FromServer
+    let validateCachedResult = sendHttpRequest (httpRequest, cancellationToken)
+    let sendFromHttpClient () = 
+        fun (cache: ICachingHttpClientDependencies) ->
+            cache.Send (httpRequest, cancellationToken)
+        |> Reader.Reader
+        |> ReaderAsync.map FromServer
 
-    // CachedRequest.build httpRequest
-    // |> asyncMap Some
-    // |> Reader.retn
-    // |> ReaderAsyncOption.bind tryGetCacheResult
-    // |> ReaderAsyncOption.map buildCacheResult
-    // |> ReaderAsyncOption.bind sendFromInsideCache
-    // |> ReaderAsyncOption.defaultWith sendFromHttpClient
-    // |> ReaderAsync.bind cacheValue
+    CachedRequest.build httpRequest
+    |> asyncMap Some
+    |> Reader.retn
+    |> ReaderAsyncOption.bind tryGetCacheResult
+    |> ReaderAsyncOption.bind validateCachedResult
+    |> ReaderAsyncOption.defaultWith sendFromHttpClient
+    |> ReaderAsync.bind cacheValue

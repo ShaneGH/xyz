@@ -11,17 +11,17 @@ namespace ShinyHttpCache.Tests
     public class CacheSettingsTests
     {
         private HttpServerCacheHeaders BuildHeaders(
-                bool cacheControlIsNull = false, 
-                bool privateCache = false, 
-                bool noStore = false,
-                bool immutable = false,
-                TimeSpan? maxAge = null,
-                TimeSpan? sMaxAge = null,
-                FSharpOption<string> pragma = null,
-                EntityTagHeaderValue eTag = null,
-                FSharpOption<DateTime> exipiresUtc = null, 
-                FSharpOption<DateTime> lasModifiedUtc = null, 
-                FSharpOption<string> vary = null)
+            bool cacheControlIsNull = false, 
+            bool sharedCache = true, 
+            bool noStore = false,
+            bool immutable = false,
+            TimeSpan? maxAge = null,
+            TimeSpan? sMaxAge = null,
+            FSharpOption<string> pragma = null,
+            EntityTagHeaderValue eTag = null,
+            FSharpOption<DateTime> exipiresUtc = null, 
+            FSharpOption<DateTime> lasModifiedUtc = null, 
+            FSharpOption<string> vary = null)
         {
             CacheControlHeaderValue cacheControl = null;
             if (!cacheControlIsNull)
@@ -32,7 +32,7 @@ namespace ShinyHttpCache.Tests
                 cacheControl.NoStore = noStore;
                 cacheControl.MaxAge = maxAge;
                 cacheControl.SharedMaxAge = sMaxAge;
-                cacheControl.Private = privateCache;
+                cacheControl.Private = !sharedCache;
             }
 
             return new HttpServerCacheHeaders(
@@ -54,7 +54,7 @@ namespace ShinyHttpCache.Tests
             var result = build(cacheHeaders);
 
             // assert
-            Assert.True(FSharpOption<ExpirySettings>.get_IsNone(result));
+            Assert.True(FSharpOption<CacheSettings>.get_IsNone(result));
         }
 
         [Test]
@@ -64,7 +64,7 @@ namespace ShinyHttpCache.Tests
             var cacheHeaders = BuildHeaders(
                 noStore: true,
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 eTag: new EntityTagHeaderValue("\"an etag\"", false),
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2),
@@ -83,14 +83,14 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 eTag: new EntityTagHeaderValue("\"an etag\"", false),
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2),
                 exipiresUtc: DateTime.UtcNow.AddDays(3));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             var both = ((Validator.Both)result.Validator).Item;
@@ -106,14 +106,14 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 eTag: new EntityTagHeaderValue("\"an etag\"", true),
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2),
                 exipiresUtc: DateTime.UtcNow.AddDays(3));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             var both = ((Validator.Both)result.Validator).Item;
@@ -127,14 +127,14 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: true,
+                sharedCache: false,
                 eTag: new EntityTagHeaderValue("\"an etag\"", false),
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2),
                 exipiresUtc: DateTime.UtcNow.AddDays(3));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             CustomAssert.Roughly(DateTime.UtcNow + TimeSpan.FromDays(1), result.MustRevalidateAtUtc);
@@ -146,14 +146,14 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 eTag: new EntityTagHeaderValue("\"an etag\"", false),
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2),
                 exipiresUtc: DateTime.UtcNow.AddDays(3));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             CustomAssert.Roughly(DateTime.UtcNow + TimeSpan.FromDays(2), result.MustRevalidateAtUtc);
@@ -165,13 +165,13 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 eTag: new EntityTagHeaderValue("\"an etag\"", false),
                 maxAge: TimeSpan.FromDays(1),
                 exipiresUtc: DateTime.UtcNow.AddDays(3));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             CustomAssert.Roughly(DateTime.UtcNow + TimeSpan.FromDays(1), result.MustRevalidateAtUtc);
@@ -183,11 +183,11 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 exipiresUtc: DateTime.UtcNow.AddDays(3));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             CustomAssert.Roughly(DateTime.UtcNow.AddDays(3), result.MustRevalidateAtUtc);
@@ -199,13 +199,13 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2),
                 exipiresUtc: DateTime.UtcNow.AddDays(3));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             var exDate = ((Validator.ExpirationDateUtc)result.Validator).Item;
@@ -218,13 +218,13 @@ namespace ShinyHttpCache.Tests
             // arrange
             var cacheHeaders = BuildHeaders(
                 immutable: true,
-                privateCache: false,
+                sharedCache: true,
                 eTag: new EntityTagHeaderValue("\"an etag\"", false),
                 maxAge: TimeSpan.FromDays(1),
                 sMaxAge: TimeSpan.FromDays(2));
 
             // act
-            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.Soft)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             var etag1 = ((Validator.ETag)result.Validator).Item;
@@ -241,7 +241,7 @@ namespace ShinyHttpCache.Tests
                 maxAge: TimeSpan.FromDays(1));
 
             // act
-            var result = ((ExpirySettings.HardUtc)build(cacheHeaders).Value).Item;
+            var result = ((ExpirySettings.HardUtc)build(cacheHeaders).Value.ExpirySettings).Item;
 
             // assert
             CustomAssert.AssertDateAlmost(DateTime.UtcNow.AddDays(1), result);
@@ -257,7 +257,59 @@ namespace ShinyHttpCache.Tests
             var result = build(cacheHeaders);
 
             // assert
-            Assert.True(result.Value.IsNoExpiryDate);
+            Assert.True(result.Value.ExpirySettings.IsNoExpiryDate);
+        }
+
+        [Test]
+        public void GetCacheTime_WithPublicImmutableCache_SetsSharedCacheFlagCorrectly()
+        {
+            // arrange
+            var cacheHeaders = BuildHeaders(immutable: true, sharedCache: true);
+
+            // act
+            var result = build(cacheHeaders);
+
+            // assert
+            Assert.True(result.Value.SharedCache);
+        }
+
+        [Test]
+        public void GetCacheTime_WithPrivateImmutableCache_SetsSharedCacheFlagCorrectly()
+        {
+            // arrange
+            var cacheHeaders = BuildHeaders(immutable: true, sharedCache: false);
+
+            // act
+            var result = build(cacheHeaders);
+
+            // assert
+            Assert.False(result.Value.SharedCache);
+        }
+
+        [Test]
+        public void GetCacheTime_WithPublicCacheControlCache_SetsSharedCacheFlagCorrectly()
+        {
+            // arrange
+            var cacheHeaders = BuildHeaders(maxAge: TimeSpan.FromDays(1), sharedCache: true);
+
+            // act
+            var result = build(cacheHeaders);
+
+            // assert
+            Assert.True(result.Value.SharedCache);
+        }
+
+        [Test]
+        public void GetCacheTime_WithPrivateCacheControlCache_SetsSharedCacheFlagCorrectly()
+        {
+            // arrange
+            var cacheHeaders = BuildHeaders(maxAge: TimeSpan.FromDays(1), sharedCache: false);
+
+            // act
+            var result = build(cacheHeaders);
+
+            // assert
+            Assert.False(result.Value.SharedCache);
         }
     }
 }
