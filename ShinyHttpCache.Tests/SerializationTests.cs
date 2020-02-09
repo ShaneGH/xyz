@@ -12,6 +12,7 @@ using System.IO;
 using static ShinyHttpCache.CachingHttpClient;
 using Microsoft.FSharp.Control;
 using System.Threading;
+using System.Linq;
 
 namespace ShinyHttpCache.Tests
 {
@@ -61,13 +62,22 @@ namespace ShinyHttpCache.Tests
             var cacheSettings = build(cacheHeaders).Value;
 
             // act
-            using (var str = Serialization.serializeCompressed(new CachedValues(cachedResponse, cacheSettings)))
+            using (var str = Serialization.serializeCompressed2(new CachedValues(cachedResponse, cacheSettings)))
             {
-                var asBytes = new byte[str.Length];
-                await str.ReadAsync(asBytes, 0, asBytes.Length);
-                using (var str2 = new MemoryStream(asBytes))
+                var result = new List<byte>(1000);
+                var buffer = new byte[1000];
+                var read = 0;
+                do
                 {
+                    read = await str.ReadAsync(buffer, 0, 1000);
+                    result.AddRange(buffer.Take(read));
+                } while (read > 0);
 
+                Assert.Fail("############# " + result.Count.ToString());
+
+                using (var str2 = new MemoryStream(result.ToArray()))
+                {
+                    var backAgain = await Serialization.deserializeDecompressed<CachedValues>(str2).ToTask();
                 }
             }
 

@@ -42,9 +42,6 @@ module private Private =
         | Some x -> asyncMap Some x
 
 open Private
-open System.Runtime.Serialization.Formatters.Binary
-open System.IO
-open System.IO.Compression
 
 module CachedContent =
 
@@ -91,7 +88,7 @@ module CachedRequest =
     type CachedRequest =
         {
             Version: Version;
-            Method: HttpMethod;
+            Method: string;
             Uri: Uri;
             Content: CachedContent.CachedContent option;
             Headers: KeyValuePair<string, string list> list;
@@ -106,7 +103,7 @@ module CachedRequest =
         |> invertOpt
         |> asyncMap (fun c -> {
             Version = req.Version;
-            Method = req.Method;
+            Method = req.Method.Method;
             Uri = req.RequestUri;
             Content = c;
             Headers = req.Headers
@@ -120,7 +117,7 @@ module CachedRequest =
         let output = new HttpRequestMessage ()
         
         output.Version <- req.Version
-        output.Method <- req.Method
+        output.Method <- HttpMethod(req.Method)
         output.RequestUri <- req.Uri
         output.Content <- 
             req.Content 

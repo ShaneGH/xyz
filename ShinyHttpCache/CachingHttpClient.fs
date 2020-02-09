@@ -94,15 +94,16 @@ module private Private =
         let execute (cache: ICachingHttpClientDependencies) =
             let userKey = cache.Cache.BuildUserKey req
 
+            let reqMethod = HttpMethod(req.Method)
             let userResult = 
                 userKey 
-                |> Option.map (buildUserCacheKey req.Method req.Uri)
+                |> Option.map (buildUserCacheKey reqMethod req.Uri)
                 |> Option.map cache.Cache.Get
                 |> traverseAsyncOpt
                 |> asyncMap squashOptions
 
             let sharedResult = 
-                buildSharedCacheKey req.Method req.Uri
+                buildSharedCacheKey reqMethod req.Uri
                 |> cache.Cache.Get
 
             async {
