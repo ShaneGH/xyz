@@ -92,8 +92,6 @@ module CachedRequest =
             Uri: Uri;
             Content: CachedContent.CachedContent option;
             Headers: KeyValuePair<string, string list> list;
-            // TODO: how do properties affect cache size
-            Properties: KeyValuePair<string, obj> list;
         }
         
        // TODO: currently this method is called a few times
@@ -111,10 +109,11 @@ module CachedRequest =
             Headers = req.Headers
                 |> Seq.map mapHeaderKvp
                 |> List.ofSeq;
-            Properties = req.Properties |> List.ofSeq;
+            // TODO: introduce properties? 
+            //Properties = req.Properties |> List.ofSeq;
         })
         
-    let toHttpRequestMessage mapProperties req =
+    let toHttpRequestMessage req =
         let output = new HttpRequestMessage ()
         
         output.Version <- req.Version
@@ -126,9 +125,6 @@ module CachedRequest =
             |> Option.defaultValue null;
         
         for h in req.Headers do output.Headers.Add(h.Key, h.Value)
-        
-        if mapProperties then
-            for p in req.Properties do output.Properties.Add(p.Key, p.Value)
         
         output
 
@@ -142,11 +138,9 @@ module CachedResponse =
             Content: CachedContent.CachedContent option
             Request: CachedRequest.CachedRequest
             Headers: KeyValuePair<string, string list> list
-            // ExpirationDateUtc: DateTime
-            // CanBeValidatedAfterExpiration: bool
         }
         
-    let build (resp: HttpResponseMessage) = // expirationDateUtc canBeValidatedAfterExpiration (resp: HttpResponseMessage) =
+    let build (resp: HttpResponseMessage) =
         let c = 
             resp.Content 
             |> toOption 
@@ -166,12 +160,10 @@ module CachedResponse =
                    |> Seq.map mapHeaderKvp
                    |> List.ofSeq;
                 Request = r'
-                // ExpirationDateUtc = expirationDateUtc
-                // CanBeValidatedAfterExpiration = canBeValidatedAfterExpiration
             }
         }
         
-    let toHttpResponseMessage mapRequestProperties resp =
+    let toHttpResponseMessage resp =
         let output = new HttpResponseMessage ()
         
         output.Version <- resp.Version
@@ -181,7 +173,7 @@ module CachedResponse =
             resp.Content 
             |> Option.map CachedContent.toHttpContent 
             |> Option.defaultValue null;
-        output.RequestMessage <- CachedRequest.toHttpRequestMessage mapRequestProperties resp.Request
+        output.RequestMessage <- CachedRequest.toHttpRequestMessage resp.Request
         
         for h in resp.Headers do output.Headers.Add(h.Key, h.Value)
         

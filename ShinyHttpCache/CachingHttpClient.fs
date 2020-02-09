@@ -239,7 +239,7 @@ module private Private =
 
     let combine (cacheResponse: CachedResponse.CachedResponse) (serviceResponse: HttpResponseMessage) isStrongValidation =
         match isStrongValidation with
-        | true -> CachedResponse.toHttpResponseMessage true cacheResponse
+        | true -> CachedResponse.toHttpResponseMessage cacheResponse
         | false ->
             let cachedContent = 
                 cacheResponse.Content
@@ -260,7 +260,7 @@ module private Private =
 
     let rec cacheValue = function
         | Hybrid x -> combineCacheResult x |> ReaderAsync.bind cacheValue
-        | FromCache x -> CachedResponse.toHttpResponseMessage true x |> ReaderAsync.retn
+        | FromCache x -> CachedResponse.toHttpResponseMessage x |> ReaderAsync.retn
         | FromServer x -> tryCacheValue x
 
 open Private
