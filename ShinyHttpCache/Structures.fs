@@ -42,6 +42,9 @@ module private Private =
         | Some x -> asyncMap Some x
 
 open Private
+open System.Runtime.Serialization.Formatters.Binary
+open System.IO
+open System.IO.Compression
 
 module CachedContent =
 

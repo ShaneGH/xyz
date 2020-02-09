@@ -10,7 +10,7 @@ namespace ShinyHttpCache.Tests
 {
     public class CacheSettingsTests
     {
-        private HttpServerCacheHeaders BuildHeaders(
+        public static HttpServerCacheHeaders BuildHeaders(
             bool cacheControlIsNull = false, 
             bool sharedCache = true, 
             bool noStore = false,
@@ -22,6 +22,33 @@ namespace ShinyHttpCache.Tests
             FSharpOption<DateTime> exipiresUtc = null, 
             FSharpOption<DateTime> lasModifiedUtc = null, 
             FSharpOption<string> vary = null)
+        {
+            return BuildHeadersInflexible(
+                cacheControlIsNull, 
+                sharedCache, 
+                noStore,
+                immutable,
+                maxAge,
+                sMaxAge,
+                pragma,
+                eTag,
+                exipiresUtc, 
+                lasModifiedUtc, 
+                vary);
+        }
+
+        public static HttpServerCacheHeaders BuildHeadersInflexible(
+            bool cacheControlIsNull, 
+            bool sharedCache, 
+            bool noStore,
+            bool immutable,
+            TimeSpan? maxAge,
+            TimeSpan? sMaxAge,
+            FSharpOption<string> pragma,
+            EntityTagHeaderValue eTag,
+            FSharpOption<DateTime> exipiresUtc, 
+            FSharpOption<DateTime> lasModifiedUtc, 
+            FSharpOption<string> vary)
         {
             CacheControlHeaderValue cacheControl = null;
             if (!cacheControlIsNull)

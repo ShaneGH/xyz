@@ -7,7 +7,6 @@ open System.Threading
 open ShinyHttpCache.Headers.Parser
 open ShinyHttpCache.Headers.CacheSettings
 open ReaderMonad
-open System.Collections.Generic
 open System.Net
 
 type CachedValues =
