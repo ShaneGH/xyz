@@ -2,9 +2,7 @@ using Moq;
 using NUnit.Framework;
 using ShinyHttpCache.Tests.TestUtils;
 using System;
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace ShinyHttpCache.Tests.FullRequestTests

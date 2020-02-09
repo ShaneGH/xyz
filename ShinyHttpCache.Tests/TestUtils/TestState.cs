@@ -3,7 +3,9 @@ using Microsoft.FSharp.Control;
 using Microsoft.FSharp.Core;
 using Moq;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,11 +70,15 @@ namespace ShinyHttpCache.Tests.TestUtils
         }
 
         public HttpResponseMessage AddHttpRequest(
-            byte addResponseContent,
-            string url = "http://www.com")
+            byte? addResponseContent,
+            string url = "http://www.com",
+            int responseCode = 200)
         {
             var response = new HttpResponseMessage();
-            response.Content = new SingleByteContent(addResponseContent);
+            if (addResponseContent.HasValue)
+                response.Content = new SingleByteContent(addResponseContent.Value);
+
+            response.StatusCode = (HttpStatusCode)responseCode;
 
             var lck = new object();
             bool first = true;
@@ -110,7 +116,8 @@ namespace ShinyHttpCache.Tests.TestUtils
             byte? addRequestContent = null,
             byte? addResponseContent = null,
             HttpMethod method = null,
-            Headers.CacheSettings.ExpirySettings expiry = null)
+            Headers.CacheSettings.ExpirySettings expiry = null,
+            KeyValuePair<string, string[]>[] customHeaders = null)
         {
             expiry = expiry ?? Headers.CacheSettings.ExpirySettings.NewHardUtc(DateTime.UtcNow.AddDays(10));
             cahcedUntil = new DateTime(cahcedUntil.Ticks, DateTimeKind.Utc);
@@ -120,6 +127,13 @@ namespace ShinyHttpCache.Tests.TestUtils
                 response.RequestMessage.Content = new SingleByteContent(addRequestContent.Value);
             if (addResponseContent != null)
                 response.Content = new SingleByteContent(addResponseContent.Value);
+            if (customHeaders != null)
+            {
+                foreach (var h in customHeaders)
+                {
+                    response.Headers.Add(h.Key, h.Value);
+                }
+            }
 
             var m = (method == null || method == HttpMethod.Get) ? "G" : null;
             if (m == null)
