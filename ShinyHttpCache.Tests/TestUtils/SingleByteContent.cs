@@ -16,7 +16,7 @@ namespace ShinyHttpCache.Tests.TestUtils
 
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext context)
         {
-            stream.Write(new byte[] { _content }, 0, 1);
+            stream.Write(new byte[]{_content}, 0, 1);
             return Task.CompletedTask;
         }
 

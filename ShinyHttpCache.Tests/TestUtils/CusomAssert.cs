@@ -2,10 +2,24 @@ using Microsoft.FSharp.Core;
 using NUnit.Framework;
 using System;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace ShinyHttpCache.Tests.TestUtils
 {
+    public class Jss : System.Text.Json.Serialization.JsonConverter<DateTime>
+    {
+        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public static class CustomAssert
     {
         /// <summary>Assert that 2 date times are within 5 seconds of each other</summary>

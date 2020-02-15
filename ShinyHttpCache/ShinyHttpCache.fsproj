@@ -1,19 +1,20 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <DefaultNamesoace>ShinyHttpCache</DefaultNamesoace>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Serialization.fs" />
+    <Compile Include="Streams.fs" />
     <Compile Include="ReaderMonad.fs" />
     <Compile Include="Headers.Parser.fs" />
     <Compile Include="Headers.CacheTime.fs" />
     <Compile Include="Headers.CacheSettings.fs" />
     <Compile Include="Structures.fs" />
     <Compile Include="CachingHttpClient.fs" />
+    <Compile Include="Serialization.fs" />
     <Compile Include="CacheHttpMessageHandler.fs" />
     <Compile Include="TestUtils.fs" />
   </ItemGroup>

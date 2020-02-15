@@ -62,22 +62,23 @@ namespace ShinyHttpCache.Tests
             var cacheSettings = build(cacheHeaders).Value;
 
             // act
-            using (var str = Serialization.serializeCompressed2(new CachedValues(cachedResponse, cacheSettings)))
+            using (var str = await Serialization.serialize(new CachedValues(cachedResponse, cacheSettings)).ToTask())
             {
+                var stream = Streams.getStream(str);
                 var result = new List<byte>(1000);
                 var buffer = new byte[1000];
                 var read = 0;
                 do
                 {
-                    read = await str.ReadAsync(buffer, 0, 1000);
+                    read = await stream.ReadAsync(buffer, 0, 1000);
                     result.AddRange(buffer.Take(read));
                 } while (read > 0);
 
-                Assert.Fail("############# " + result.Count.ToString());
+              //  Assert.Fail("############# " + result.Count.ToString());
 
                 using (var str2 = new MemoryStream(result.ToArray()))
                 {
-                    var backAgain = await Serialization.deserializeDecompressed<CachedValues>(str2).ToTask();
+                    var backAgain = await Serialization.deserialize<CachedValues>(str2).ToTask();
                 }
             }
 
