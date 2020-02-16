@@ -7,6 +7,8 @@ open System.Net.Http
 open System.Text
 
 module private Private = 
+    let toCSharpList (seq: 'a seq) = List<'a> seq
+
     let asyncReturn x = async { return x }
     
     let asyncMap f x = async { 
@@ -15,23 +17,25 @@ module private Private =
     }
 
     let mapHeaderKvp (kvp: KeyValuePair<string, IEnumerable<'a>>) =
-        new KeyValuePair<string, 'a list>(kvp.Key, List.ofSeq kvp.Value)
+        new KeyValuePair<string, List<'a>>(kvp.Key, toCSharpList kvp.Value)
 
-    let pointerSize = IntPtr.Size
 
-    let measureHeaderSize (h: KeyValuePair<string, string list>) =
-        // header
-        pointerSize 
-        // key
-        + pointerSize + Encoding.UTF8.GetByteCount h.Key
-        // values
-        + pointerSize + List.fold (fun s (v: string) -> s + pointerSize + (Encoding.UTF8.GetByteCount v)) 0 h.Value
 
-    let measureHeadersSize hs =
-        // headers
-        pointerSize 
-        // each header
-        + pointerSize + (List.sumBy measureHeaderSize hs)
+    // let pointerSize = IntPtr.Size
+
+    // let measureHeaderSize (h: KeyValuePair<string, string list>) =
+    //     // header
+    //     pointerSize 
+    //     // key
+    //     + pointerSize + Encoding.UTF8.GetByteCount h.Key
+    //     // values
+    //     + pointerSize + List.fold (fun s (v: string) -> s + pointerSize + (Encoding.UTF8.GetByteCount v)) 0 h.Value
+
+    // let measureHeadersSize hs =
+    //     // headers
+    //     pointerSize 
+    //     // each header
+    //     + pointerSize + (List.sumBy measureHeaderSize hs)
 
     let toOption = function
         | x when isNull x -> None
@@ -45,7 +49,7 @@ open Private
 
 module CachedContent =
 
-    type CachedHttpContent (content: byte[], headers: KeyValuePair<string, string list> seq) as this =
+    type CachedHttpContent (content: byte[], headers: KeyValuePair<string, List<string>> seq) as this =
         inherit HttpContent()
         do for header in headers do this.Headers.Add(header.Key, header.Value)
         
@@ -58,7 +62,7 @@ module CachedContent =
     
     type CachedContent =
         {
-            Headers: KeyValuePair<string, string list> list
+            Headers: List<KeyValuePair<string, List<string>>>
             Content: byte array
         }
         
@@ -68,20 +72,20 @@ module CachedContent =
             return {
                 Headers = content.Headers
                    |> Seq.map mapHeaderKvp
-                   |> List.ofSeq;
+                   |> toCSharpList
                 Content = c
             }
         }
         
     let toHttpContent cachedContent =
-        new CachedHttpContent (cachedContent.Content, cachedContent.Headers |> Seq.ofList)
+        new CachedHttpContent (cachedContent.Content, cachedContent.Headers |> toCSharpList)
         :> HttpContent
         
-    let getRoughMemorySize cachedContent =
-        let contentLength = cachedContent.Content.Length + pointerSize
-        let headerLength = measureHeadersSize cachedContent.Headers
+    // let getRoughMemorySize cachedContent =
+    //     let contentLength = cachedContent.Content.Length + pointerSize
+    //     let headerLength = measureHeadersSize cachedContent.Headers
 
-        pointerSize + contentLength + headerLength
+    //     pointerSize + contentLength + headerLength
 
 module CachedRequest =
     
@@ -91,7 +95,7 @@ module CachedRequest =
             Method: string;
             Uri: Uri;
             Content: CachedContent.CachedContent option;
-            Headers: KeyValuePair<string, string list> list;
+            Headers: List<KeyValuePair<string, List<string>>>;
         }
         
        // TODO: currently this method is called a few times
@@ -108,7 +112,7 @@ module CachedRequest =
             Content = c;
             Headers = req.Headers
                 |> Seq.map mapHeaderKvp
-                |> List.ofSeq;
+                |> toCSharpList;
             // TODO: introduce properties? 
             //Properties = req.Properties |> List.ofSeq;
         })
@@ -137,7 +141,7 @@ module CachedResponse =
             ReasonPhrase: string
             Content: CachedContent.CachedContent option
             Request: CachedRequest.CachedRequest
-            Headers: KeyValuePair<string, string list> list
+            Headers: List<KeyValuePair<string, List<string>>>
         }
         
     let build (resp: HttpResponseMessage) =
@@ -158,7 +162,7 @@ module CachedResponse =
                 Content = c';
                 Headers = resp.Headers 
                    |> Seq.map mapHeaderKvp
-                   |> List.ofSeq;
+                   |> toCSharpList;
                 Request = r'
             }
         }

@@ -1,120 +1,88 @@
-﻿module ShinyHttpCache.Serialization
-open System.IO
+﻿module ShinyHttpCache.Serialization.CompressedSerialization
+open Microsoft.FSharp.Reflection
 open ShinyHttpCache.CachingHttpClient
+open ShinyHttpCache
 open System
-open System.Text.Json
-open System.Threading
+open System.IO
 open System.IO.Compression
+open System.Reflection
+open System.Text.Json
+open System.Text.Json.Serialization
+open System.Threading
 
-module Dtos =
-    open ShinyHttpCache.Headers.CacheSettings
+module Converters =
 
-    type EntityTagDto() =
-        [<DefaultValue>] val mutable Type: char
-        [<DefaultValue>] val mutable Value: string
+    module Private1 =
+        let assertToken expected actual =
+            match actual with
+            | x when x = expected -> ()
+            | _ -> sprintf "Invalid token type %A. Expecting %A." actual expected |> JsonException |> raise
 
-    let toEntityTagDto = function
-        | Strong x ->
-            {
-                Value = x
-                Type = 's'
-            }
-        | Weak x ->
-            {
-                Value = x
-                Type = 'w'
-            }
+        let getConstructorArgs (constructor: ConstructorInfo) (values: (string * obj) list) =
+            constructor.GetParameters()
+            |> Array.map (fun arg -> 
+                values
+                |> List.filter (fun (k, _) ->
+                    k.Equals(arg.Name, StringComparison.InvariantCultureIgnoreCase))
+                |> List.map (fun (_, v) -> v)
+                |> List.tryHead
+                |> Option.defaultWith (fun () -> sprintf "Could not find value for record type property %s" arg.Name |> JsonException |> raise))
 
-    type ValidatorDto =
-        {
-            Type: char
-            ETag: EntityTagDto
-            ExpirationDateUtc: Nullable<DateTime>
-        }
+        let buildRecordType (typ: Type) values =
+            match typ.GetConstructors() with
+            | [|constructor|] -> 
+                getConstructorArgs constructor values
+                |> constructor.Invoke
+            | _ -> sprintf "Could not find constructor for record type %A" typ |> JsonException |> raise
 
-    let toValidarotDto = function
-        | ETag x ->
-            {
-                Type = 't'
-                ETag = toEntityTagDto x
-                ExpirationDateUtc = Nullable<DateTime>()
-            }
-        | ExpirationDateUtc x ->
-            {
-                Type = 'd'
-                ETag = null :> obj :?> EntityTagDto
-                ExpirationDateUtc = Nullable<DateTime> x
-            }
-        | Both (x, y) ->
-            {
-                Type = 'b'
-                ETag = toEntityTagDto x
-                ExpirationDateUtc = Nullable<DateTime> y
-            }
+        let getPropertyType (typ: Type) name =
+            let props =
+                typ.GetProperties()
+                |> Seq.ofArray
+                |> Seq.map (fun p -> (p.Name, p.PropertyType))
 
-    type RevalidationSettingsDto = 
-        {
-            MustRevalidateAtUtc: DateTime
-            Validator: ValidatorDto
-        }
+            let fields =
+                typ.GetFields()
+                |> Seq.ofArray
+                |> Seq.map (fun p -> (p.Name, p.FieldType))
 
-    type ExpirySettingsDto =
-        {
-            Type: char
-            Soft: RevalidationSettingsDto
-            HardUtc: Nullable<DateTime>
-        }
+            Seq.concat [ props; fields ]
+            |> Seq.filter (fun (n, _) -> n.Equals(name, StringComparison.InvariantCultureIgnoreCase))
+            |> Seq.map (fun (_, v) -> v)
+            |> Seq.tryHead
 
-    let toExpirySettingsDto = function
-        | NoExpiryDate ->
-            {
-                Soft = null :> obj :?> RevalidationSettingsDto
-                HardUtc = Nullable<DateTime>()
-                Type = 'n'
-            }
-        | HardUtc x -> 
-            {
-                Soft = null :> obj :?> RevalidationSettingsDto
-                HardUtc = Nullable<DateTime> x
-                Type = 'h'
-            }
-        | Soft x -> 
-            {
-                Soft = 
-                    {
-                        MustRevalidateAtUtc = x.MustRevalidateAtUtc
-                        Validator = toValidarotDto x.Validator
-                    }
-                HardUtc = Nullable<DateTime>()
-                Type = 's'
-            }
+        let read (reader: byref<Utf8JsonReader>, typeToConvert: Type, options: JsonSerializerOptions) =
+            
+            let mutable brk = false
+            let mutable values = []
+            while not brk do
+                match reader.Read() with
+                | true when reader.TokenType = JsonTokenType.EndObject ->
+                    brk <- true
+                    ()
+                | true ->
+                    assertToken JsonTokenType.PropertyName reader.TokenType
+                    let key = reader.GetString()
+                    let objType = 
+                        getPropertyType typeToConvert key
+                        |> Option.defaultValue typedefof<obj>
 
-    type CacheSettingsDto =
-        {
-            ExpirySettings: ExpirySettingsDto
-            SharedCache: bool
-        }
+                    let value = JsonSerializer.Deserialize(&reader, objType, options)
+                    values <- List.concat [values; [(key, value)]]
+                | false -> 
+                    JsonException "Unexpected end of JSON sequence" |> raise
 
-    type CacheValuesDto =
-        {
-            ShinyHttpCacheVersion: Version
-            HttpResponse: CachedResponse.CachedResponse
-            CacheSettings: CacheSettingsDto
-        }
+            buildRecordType typeToConvert values
+    open Private1
+    
+    type RecordTypeConverter() =
+        inherit JsonConverter<obj>()
 
-    let toCacheSettingsDto (x: Headers.CacheSettings.CacheSettings) = 
-        {
-            SharedCache = x.SharedCache
-            ExpirySettings = toExpirySettingsDto x.ExpirySettings
-        }
+        override __.CanConvert typeToConvert = FSharpType.IsRecord typeToConvert
 
-    let private version = (typedefof<CacheValuesDto>).Assembly.GetName().Version
-    let toDto (x: CachedValues) = 
-        {
-            ShinyHttpCacheVersion = version
-            HttpResponse = x.HttpResponse
-            CacheSettings = toCacheSettingsDto x.CacheSettings
-        }
+        override __.Read(reader, typeToConvert, options) = read (&reader, typeToConvert, options)
+
+        override __.Write(writer, value, options) = JsonSerializer.Serialize(writer, value, options)
 
 module private Private =
     let asyncMap f x = async { 
@@ -126,8 +94,6 @@ module private Private =
         let! x1 = x; 
         return! (f x1) 
     }
-
-    let tDto = typedefof<Dtos.CacheValuesDto>
 
     let private gzip (mode: CompressionMode) (stream: Streams.Streams) = 
         let ms = new MemoryStream()
@@ -168,162 +134,27 @@ module private Private =
             return Streams.combine newStreams stream
         }
 
-
 open Private
 
-let serialize x =
-    let dto = Dtos.toDto x
+let serialize<'a> (dto: 'a) =
     let ms = new MemoryStream()
-
-    JsonSerializer.SerializeAsync(ms, dto, tDto, null, Unchecked.defaultof<CancellationToken>)
+    JsonSerializer.SerializeAsync(ms, dto, typedefof<'a>, null, Unchecked.defaultof<CancellationToken>)
     |> Async.AwaitTask
     |> asyncMap (fun _ -> 
         ms.Position <- 0L
         Streams.build (ms, true) [])
     |> asyncBind compress
 
-let deserialize<'a> (ms: MemoryStream) =
+let deserialize<'a> s =
+
     async {
-        use! str = Streams.build (ms, false) [] |> decompress
+        use! str = Streams.build (s, false) [] |> decompress
         
         let s = Streams.getStream str
-        let dtoT = JsonSerializer.DeserializeAsync<Dtos.CacheValuesDto> s
+        let options = JsonSerializerOptions()
+        options.Converters.Add(Converters.RecordTypeConverter())
+        let dtoT = JsonSerializer.DeserializeAsync<'a> (s, options)
 
-        return! dtoT.AsTask() |> Async.AwaitTask
+        let! dto = dtoT.AsTask() |> Async.AwaitTask
+        return dto
     }
-// open System.Runtime.Serialization.Formatters.Binary
-// open System.IO
-// open System.IO.Compression
-// open System.Text.Json
-// open System.Threading
-
-// module FSharpUnionTypes =
-//     open Microsoft.FSharp.Reflection
-//     open System
-//     open System.Collections.Generic
-
-//     let private isUnionType<'a> () =
-//         typedefof<'a> |> FSharpType.IsUnion
-
-//     type UnionConverter<'a> () =
-//         inherit Serialization.JsonConverter<'a>()
-//             static let isUnion = isUnionType<'a>()
-//             override __.CanConvert typeToConvert =
-//                 isUnion && (base.CanConvert typeToConvert)
-                
-//             override __.Read (reader, typeToConvert, options) =
-//                 Unchecked.defaultof<'a>
-
-//             override __.Write(writer, value, options) =
-//                 ()
-
-
-
-// // /// <summary>Determines whether the specified type can be converted.</summary>
-// // /// <param name="typeToConvert">The type to compare against.</param>
-// // /// <returns>
-// // ///   <see langword="true" /> if the type can be converted; otherwise, <see langword="false" />.</returns>
-// // public override bool CanConvert(Type typeToConvert)
-// // {
-// // 	throw null;
-// // }
-
-// // /// <summary>Reads and converts the JSON to type <typeparamref name="T" />.</summary>
-// // /// <param name="reader">The reader.</param>
-// // /// <param name="typeToConvert">The type to convert.</param>
-// // /// <param name="options">An object that specifies serialization options to use.</param>
-// // /// <returns>The converted value.</returns>
-// // public abstract T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options);
-
-// // /// <summary>Writes a specified value as JSON.</summary>
-// // /// <param name="writer">The writer to write to.</param>
-// // /// <param name="value">The value to convert to JSON.</param>
-// // /// <param name="options">An object that specifies serialization options to use.</param>
-// // public abstract void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options);
-
-// module private Private =
-//     let asyncMap f x = async { 
-//         let! x1 = x; 
-//         return (f x1) 
-//     }
-
-//     type MJC () =
-//         inherit Serialization.JsonConverter()
-
-//     let jsonOptions =
-//         let options = JsonSerializerOptions()
-//         options.p
-//         options
-// open Private
-
-// // TODO: is this thread safe?
-// let private serializer = BinaryFormatter();
-// let serialize value =
-    
-//     // let ms = new MemoryStream()
-//     // serializer.Serialize(ms, value)
-//     // ms.Position <- 0L
-//     // async { return (ms :> Stream) }
-
-//     let ms = new MemoryStream()
-//     let options = JsonSerializerOptions()
-    
-//     options.Converters
-
-//     JsonSerializer.SerializeAsync(ms, value, value.GetType(), null, Unchecked.defaultof<CancellationToken>)
-//     |> Async.AwaitTask
-//     |> asyncMap (fun _ -> 
-//         ms.Position <- 0L
-//         let reader = new StreamReader(ms)
-//         let yyy = reader.ReadToEnd()
-//         invalidOp(yyy))
-//     |> asyncMap (fun _ -> 
-//         ms.Position <- 0L
-//         ms)
-
-// let deserailize<'a> stream =
-//     serializer.Deserialize(stream) :?> 'a
-
-// let compress (stream: Stream) = 
-//     let ms = new MemoryStream()
-
-//     async {
-//         use gz = new GZipStream(ms, CompressionMode.Compress)
-//         do! stream.CopyToAsync(gz) |> Async.AwaitTask
-//         ms.Position <- 0L
-//         return (ms :> Stream)
-//     }
-
-// let decompress (stream: Stream) = 
-//     let ms = new MemoryStream()
-
-//     async {
-//         use gz = new GZipStream(ms, CompressionMode.Decompress)
-//         do! stream.CopyToAsync(gz) |> Async.AwaitTask
-//         ms.Position <- 0L
-//         return (ms :> Stream)
-//     }
-
-// let serializeCompressed x = 
-//     async {
-//         use! ser = serialize x
-//         return! compress ser
-//     }
-
-// let deserializeDecompressed x =
-//     async {
-//         use! dec = decompress x
-//         return deserailize dec
-//     }
-
-// let compress2 (stream: Stream) = 
-//     let ms = new MemoryStream()
-    
-//     let gz = new GZipStream(ms, CompressionMode.Compress)
-//     do stream.CopyTo(gz)
-//     ms.Position <- 0L
-//     (ms :> Stream)
-
-// let serializeCompressed2 x = 
-//     use ser = serialize x |> Async.RunSynchronously
-//     compress2 ser

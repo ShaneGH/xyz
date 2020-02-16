@@ -15,6 +15,10 @@
     <Compile Include="Structures.fs" />
     <Compile Include="CachingHttpClient.fs" />
     <Compile Include="Serialization.fs" />
+    <Compile Include="Serialization.Dtos.fs" />
+    <Compile Include="Serialization.CachedValues.V1.fs" />
+    <Compile Include="Serialization.CachedValues.Serializer.fs" />
+    <Compile Include="Serialization.CachedValues.fs" />
     <Compile Include="CacheHttpMessageHandler.fs" />
     <Compile Include="TestUtils.fs" />
   </ItemGroup>

@@ -2,6 +2,7 @@
 open System.IO
 open System
 open Private
+open System.Threading.Tasks
 
 module private Private =
     let asyncMap f x = async { 
@@ -49,6 +50,10 @@ let build (s: Stream, disposeOfStream) (ss: IDisposable list) =
     |> Streams
 
 let getStream = function | Streams x -> x.Stream
+
+let stream f = getStream >> f
+
+let streamAsync (f: Stream -> Task) = getStream >> f >> Async.AwaitTask
 
 let combine primary (secondary: Streams) =
     match primary with
