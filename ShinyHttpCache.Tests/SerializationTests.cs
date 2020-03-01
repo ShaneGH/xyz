@@ -9,10 +9,11 @@ using System.Net.Http;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.IO;
-using static ShinyHttpCache.CachingHttpClient;
+using static ShinyHttpCache.FSharp.CachingHttpClient;
 using Microsoft.FSharp.Control;
 using System.Threading;
 using System.Linq;
+using ShinyHttpCache.Serialization.HttpResponseMessage;
 
 namespace ShinyHttpCache.Tests
 {
@@ -54,9 +55,9 @@ namespace ShinyHttpCache.Tests
             httpResponse.RequestMessage.Headers.IfUnmodifiedSince = DateTimeOffset.UtcNow;
             httpResponse.RequestMessage.Content.Headers.ContentLanguage.Add("en-us");
 
-            httpResponse.Headers.Add("x-a-header", "h1");
+            httpResponse.Headers.Add("x-a-header", "h2");
             httpResponse.Headers.ETag = new EntityTagHeaderValue("\"asdas\"");
-            httpResponse.Content.Headers.ContentLanguage.Add("en-us");
+            httpResponse.Content.Headers.ContentLanguage.Add("es-es");
 
             var cachedResponse = await FSharpAsync.StartAsTask(CachedResponse.build(httpResponse), null, default(CancellationToken));
             var cacheSettings = build(cacheHeaders).Value;
@@ -64,7 +65,7 @@ namespace ShinyHttpCache.Tests
             // act
             using (var str = await Serialization.CachedValues.Root.serialize(new CachedValues(cachedResponse, cacheSettings)).ToTask())
             {
-                var stream = Streams.getStream(str);
+                var stream = Utils.Disposables.getValue(str);
                 var result = new List<byte>(1000);
                 var buffer = new byte[1000];
                 var read = 0;

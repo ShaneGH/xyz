@@ -9,8 +9,9 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using static ShinyHttpCache.CachingHttpClient;
-using AppTestUtils = ShinyHttpCache.TestUtils;
+using static ShinyHttpCache.FSharp.CachingHttpClient;
+using ShinyHttpCache.Serialization.HttpResponseMessage;
+using AppTestUtils = ShinyHttpCache.Utils.TestUtils;
 
 namespace ShinyHttpCache.Tests.TestUtils
 {

@@ -10,6 +10,7 @@ using System.Linq;
 using System.Threading;
 using System.Net.Http;
 using static ShinyHttpCache.Headers.CacheSettings.ExpirySettings;
+using static ShinyHttpCache.FSharp.CachingHttpClient;
 
 namespace ShinyHttpCache.Tests.FullRequestTests
 {
@@ -27,11 +28,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 // if there is an ETag, expires should be now, and not the past expiry
                 var settings = ((Soft)input.Item2.CacheSettings.ExpirySettings).Item;
@@ -57,11 +58,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 // if there is an ETag, expires should be now, and not the past expiry
                 var settings = ((Soft)input.Item2.CacheSettings.ExpirySettings).Item;
@@ -87,11 +88,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 var settings = ((Soft)input.Item2.CacheSettings.ExpirySettings).Item;
                 var expirationDate = ((Headers.CacheSettings.Validator.ExpirationDateUtc)settings.Validator).Item;
@@ -119,11 +120,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 // if there is an ETag, expires should be now, and not the past expiry
                 var settings = ((Soft)input.Item2.CacheSettings.ExpirySettings).Item;
@@ -164,7 +165,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             // assert
             await CustomAssert.AssertResponse(4, response);
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachingHttpClient.CachedValues>>()), Times.Never);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedValues>>()), Times.Never);
             Assert.AreEqual("cached value", response.Headers.GetValues("x-custom-header").First());
                 
             Predicate<Tuple<HttpRequestMessage, CancellationToken>> assertHttpSend = AssertHttpSend;
@@ -236,11 +237,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assertCachePut = AssertCachePut;
+            Predicate<Tuple<string, CachedValues>> assertCachePut = AssertCachePut;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assertCachePut)), Times.Once);
 
-            bool AssertCachePut(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertCachePut(Tuple<string, CachedValues> input)
             {
                 Assert.AreEqual("server value", response.Headers.GetValues("x-custom-header").First());
 
@@ -266,7 +267,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             // assert
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachingHttpClient.CachedValues>>()), Times.Never);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedValues>>()), Times.Never);
         }
     }
 }

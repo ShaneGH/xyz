@@ -1,7 +1,6 @@
 ﻿module ShinyHttpCache.Serialization.CompressedSerialization
 open Microsoft.FSharp.Reflection
-open ShinyHttpCache.CachingHttpClient
-open ShinyHttpCache
+open ShinyHttpCache.Utils
 open System
 open System.IO
 open System.IO.Compression
@@ -95,62 +94,62 @@ module private Private =
         return! (f x1) 
     }
 
-    let private gzip (mode: CompressionMode) (stream: Streams.Streams) = 
+    let private gzip (mode: CompressionMode) (stream: Disposables.Disposables<Stream>) = 
         let ms = new MemoryStream()
         let gz = new GZipStream(ms, mode)
-        let newStreams = Streams.build (ms, true) [gz]
-        let data = Streams.getStream stream
+        let newStreams = Disposables.buildFromDisposable ms [gz]
+        let data = Disposables.getValue stream
 
         async {
             do! data.CopyToAsync(gz) |> Async.AwaitTask
             do! gz.FlushAsync() |> Async.AwaitTask
             ms.Position <- 0L
-            return Streams.combine newStreams stream
+            return Disposables.combine newStreams stream
         }
 
-    let compress (stream: Streams.Streams) = 
-        let ms = new MemoryStream()
+    let compress (stream: Disposables.Disposables<Stream>) = 
+        let ms = new MemoryStream() :> Stream
         let gz = new GZipStream(ms, CompressionMode.Compress)
-        let newStreams = Streams.build (ms, true) [gz]
-        let data = Streams.getStream stream
+        let newStreams = Disposables.buildFromDisposable ms [gz]
+        let data = Disposables.getValue stream
 
         async {
             do! data.CopyToAsync(gz) |> Async.AwaitTask
             do! gz.FlushAsync() |> Async.AwaitTask
             ms.Position <- 0L
-            return Streams.combine newStreams stream
+            return Disposables.combine newStreams stream
         }
 
-    let decompress (stream: Streams.Streams) = 
-        let ms = new MemoryStream()
-        let data = Streams.getStream stream
+    let decompress (stream: Disposables.Disposables<Stream>) = 
+        let ms = new MemoryStream() :> Stream
+        let data = Disposables.getValue stream
         let gz = new GZipStream(data, CompressionMode.Decompress)
-        let newStreams = Streams.build (ms, true) [gz]
+        let newStreams = Disposables.buildFromDisposable ms [gz]
 
         async {
             do! gz.CopyToAsync(ms) |> Async.AwaitTask
             do! gz.FlushAsync() |> Async.AwaitTask
             ms.Position <- 0L
-            return Streams.combine newStreams stream
+            return Disposables.combine newStreams stream
         }
 
 open Private
 
 let serialize<'a> (dto: 'a) =
-    let ms = new MemoryStream()
+    let ms = new MemoryStream() :> Stream
     JsonSerializer.SerializeAsync(ms, dto, typedefof<'a>, null, Unchecked.defaultof<CancellationToken>)
     |> Async.AwaitTask
     |> asyncMap (fun _ -> 
         ms.Position <- 0L
-        Streams.build (ms, true) [])
+        Disposables.buildFromDisposable ms [])
     |> asyncBind compress
 
 let deserialize<'a> s =
 
     async {
-        use! str = Streams.build (s, false) [] |> decompress
+        use! str = Disposables.build s [] |> decompress
         
-        let s = Streams.getStream str
+        let s = Disposables.getValue str
         let options = JsonSerializerOptions()
         options.Converters.Add(Converters.RecordTypeConverter())
         let dtoT = JsonSerializer.DeserializeAsync<'a> (s, options)

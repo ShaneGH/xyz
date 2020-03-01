@@ -4,6 +4,7 @@ using ShinyHttpCache.Tests.TestUtils;
 using System;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using static ShinyHttpCache.FSharp.CachingHttpClient;
 
 namespace ShinyHttpCache.Tests.FullRequestTests
 {
@@ -22,7 +23,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             // assert
             await CustomAssert.AssertResponse(1, response);
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachingHttpClient.CachedValues>>()), Times.Never);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedValues>>()), Times.Never);
         }
 
         [Test]
@@ -40,11 +41,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 Assert.AreEqual("G$:$:http://www.com/", input.Item1);
                 CustomAssert.AssertCachedResponse(1, input.Item2.HttpResponse);
@@ -67,11 +68,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest();
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 CustomAssert.AssertDateAlmost(
                     expectedResponse.Content.Headers.Expires.Value.UtcDateTime, 
@@ -94,7 +95,7 @@ namespace ShinyHttpCache.Tests.FullRequestTests
 
             // assert
             state.Dependencies
-                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachingHttpClient.CachedValues>>()), Times.Once);
+                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedValues>>()), Times.Once);
         }
         
         [Test]

@@ -1,10 +1,9 @@
-﻿namespace ShinyHttpCache
+﻿namespace ShinyHttpCache.Serialization.HttpResponseMessage
 
 open System
 open System.Collections.Generic
 open System.Net
 open System.Net.Http
-open System.Text
 
 module private Private = 
     let toCSharpList (seq: 'a seq) = List<'a> seq
@@ -18,24 +17,6 @@ module private Private =
 
     let mapHeaderKvp (kvp: KeyValuePair<string, IEnumerable<'a>>) =
         new KeyValuePair<string, List<'a>>(kvp.Key, toCSharpList kvp.Value)
-
-
-
-    // let pointerSize = IntPtr.Size
-
-    // let measureHeaderSize (h: KeyValuePair<string, string list>) =
-    //     // header
-    //     pointerSize 
-    //     // key
-    //     + pointerSize + Encoding.UTF8.GetByteCount h.Key
-    //     // values
-    //     + pointerSize + List.fold (fun s (v: string) -> s + pointerSize + (Encoding.UTF8.GetByteCount v)) 0 h.Value
-
-    // let measureHeadersSize hs =
-    //     // headers
-    //     pointerSize 
-    //     // each header
-    //     + pointerSize + (List.sumBy measureHeaderSize hs)
 
     let toOption = function
         | x when isNull x -> None
@@ -80,12 +61,6 @@ module CachedContent =
     let toHttpContent cachedContent =
         new CachedHttpContent (cachedContent.Content, cachedContent.Headers |> toCSharpList)
         :> HttpContent
-        
-    // let getRoughMemorySize cachedContent =
-    //     let contentLength = cachedContent.Content.Length + pointerSize
-    //     let headerLength = measureHeadersSize cachedContent.Headers
-
-    //     pointerSize + contentLength + headerLength
 
 module CachedRequest =
     

@@ -1,5 +1,5 @@
 ﻿module ShinyHttpCache.Serialization.CachedValues.Root
-open ShinyHttpCache.Streams
+open ShinyHttpCache.Utils.Disposables
 open ShinyHttpCache.Serialization
 open System.IO
 open System
@@ -30,20 +30,20 @@ module private Private =
     let getDerializer = function
         | (1us, 0us) -> V1.deserialize
         | (1us, _) -> V1.deserialize
-        // TODO: handle more gracefully
+        // TODO: handle more gracefully (warn and return cache miss rather than throw)
         // TODO: better message, include current dll version + supported serializer versions
         | (major, minor) -> sprintf "Invalid serialized version %d.%d" major minor |> invalidOp
 
-    let prependVersion (major: uint16, minor: uint16) (s: Streams) =
-        let ms = new MemoryStream()
-        let str = build (ms, true) []
+    let prependVersion (major: uint16, minor: uint16) (s: Disposables<Stream>) =
+        let ms = new MemoryStream() :> Stream
+        let str = buildFromDisposable ms []
         let v = Array.concat [|BitConverter.GetBytes major;BitConverter.GetBytes minor|]
 
         ms.AsyncWrite(v, 0, 4)
         |> asyncBind (fun _ ->
-            streamAsync (fun s -> s.CopyToAsync(ms)) s)
+            streamAsync (fun (s: Stream) -> s.CopyToAsync(ms)) s)
         |> asyncBind (fun _ ->
-            streamAsync (fun s -> s.FlushAsync()) s)
+            streamAsync (fun (s: Stream) -> s.FlushAsync()) s)
         |> asyncMap (fun _ ->
             ms.Position <- 0L
             combine str s)

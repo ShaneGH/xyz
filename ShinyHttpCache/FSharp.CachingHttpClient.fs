@@ -1,12 +1,13 @@
-﻿module ShinyHttpCache.CachingHttpClient
+﻿module ShinyHttpCache.FSharp.CachingHttpClient
 
 open System
 open System.Net.Http.Headers
 open System.Net.Http
 open System.Threading
+open ShinyHttpCache.Serialization.HttpResponseMessage
 open ShinyHttpCache.Headers.Parser
 open ShinyHttpCache.Headers.CacheSettings
-open ReaderMonad
+open ShinyHttpCache.Utils.ReaderMonad
 open System.Net
 
 type CachedValues =

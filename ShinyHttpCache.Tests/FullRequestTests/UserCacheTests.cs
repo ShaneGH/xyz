@@ -5,6 +5,9 @@ using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using ShinyHttpCache.FSharp;
+using ShinyHttpCache.Serialization.HttpResponseMessage;
+using static ShinyHttpCache.FSharp.CachingHttpClient;
 
 namespace ShinyHttpCache.Tests.FullRequestTests
 {
@@ -26,11 +29,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest(user: "my user");
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 Assert.AreEqual("G$:$:http://www.com/", input.Item1);
                 return true;
@@ -53,11 +56,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest(user: "my user");
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 Assert.AreEqual("G$:my user$:http://www.com/", input.Item1);
                 return true;
@@ -80,11 +83,11 @@ namespace ShinyHttpCache.Tests.FullRequestTests
             var response = await state.ExecuteRequest(user: "my$user");
 
             // assert
-            Predicate<Tuple<string, CachingHttpClient.CachedValues>> assert = AssertResult;
+            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
             state.Dependencies
                 .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
 
-            bool AssertResult(Tuple<string, CachingHttpClient.CachedValues> input)
+            bool AssertResult(Tuple<string, CachedValues> input)
             {
                 Assert.AreEqual("G$:my$$user$:http://www.com/", input.Item1);
                 return true;

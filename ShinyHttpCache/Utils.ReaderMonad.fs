@@ -1,4 +1,4 @@
-module ShinyHttpCache.ReaderMonad
+module ShinyHttpCache.Utils.ReaderMonad
 
 [<RequireQualifiedAccess>]
 module Reader =

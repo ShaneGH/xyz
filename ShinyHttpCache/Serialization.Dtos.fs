@@ -1,7 +1,8 @@
 ﻿module ShinyHttpCache.Serialization.Dtos
-open ShinyHttpCache.CachingHttpClient
+open ShinyHttpCache.FSharp.CachingHttpClient
 open System
 open ShinyHttpCache.Headers.CacheSettings
+open ShinyHttpCache.Serialization.HttpResponseMessage
 open ShinyHttpCache
 
 type EntityTagDto =
@@ -35,7 +36,7 @@ type ValidatorDto =
         ExpirationDateUtc: Nullable<DateTime>
     }
 
-let toValidarorDto = function
+let toValidatorDto = function
     | ETag x ->
         {
             Type = 't'
@@ -93,7 +94,7 @@ let toExpirySettingsDto = function
             Soft = 
                 {
                     MustRevalidateAtUtc = x.MustRevalidateAtUtc
-                    Validator = toValidarorDto x.Validator
+                    Validator = toValidatorDto x.Validator
                 }
             HardUtc = Nullable<DateTime>()
             Type = 's'

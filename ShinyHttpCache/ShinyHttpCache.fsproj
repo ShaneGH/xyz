@@ -7,20 +7,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Streams.fs" />
-    <Compile Include="ReaderMonad.fs" />
+    <Compile Include="Utils.Disposables.fs" />
+    <Compile Include="Utils.ReaderMonad.fs" />
+    <Compile Include="Utils.TestUtils.fs" />
     <Compile Include="Headers.Parser.fs" />
     <Compile Include="Headers.CacheTime.fs" />
     <Compile Include="Headers.CacheSettings.fs" />
-    <Compile Include="Structures.fs" />
-    <Compile Include="CachingHttpClient.fs" />
-    <Compile Include="Serialization.fs" />
+    <Compile Include="Model.CachedValues.fs" />
+    <Compile Include="Serialization.HttpResponseMessage.fs" />
+    <Compile Include="FSharp.CachingHttpClient.fs" />
+    <Compile Include="Serialization.CompressedSerialization.fs" />
     <Compile Include="Serialization.Dtos.fs" />
     <Compile Include="Serialization.CachedValues.V1.fs" />
     <Compile Include="Serialization.CachedValues.Serializer.fs" />
     <Compile Include="Serialization.CachedValues.fs" />
-    <Compile Include="CacheHttpMessageHandler.fs" />
-    <Compile Include="TestUtils.fs" />
+    <Compile Include="CSharp.CacheHttpMessageHandler.fs" />
   </ItemGroup>
 
 </Project>

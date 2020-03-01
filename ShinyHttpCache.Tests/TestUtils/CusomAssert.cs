@@ -4,6 +4,7 @@ using System;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using ShinyHttpCache.Serialization.HttpResponseMessage;
 
 namespace ShinyHttpCache.Tests.TestUtils
 {

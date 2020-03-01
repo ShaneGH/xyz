@@ -1,6 +1,7 @@
-namespace ShinyHttpCache
+namespace ShinyHttpCache.CSharp
 open System.Net.Http
-open CachingHttpClient
+open ShinyHttpCache
+open ShinyHttpCache.FSharp.CachingHttpClient
 
 
 type CacheHttpMessageHandler (cache: ICache) =
@@ -16,5 +17,5 @@ type CacheHttpMessageHandler (cache: ICache) =
     override this.SendAsync(req, token) = 
     
         client (req, token)
-        |> ReaderMonad.Reader.run (this :> ICachingHttpClientDependencies)
+        |> Utils.ReaderMonad.Reader.run (this :> ICachingHttpClientDependencies)
         |> Async.StartAsTask
