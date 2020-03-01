@@ -250,19 +250,18 @@ module private Private =
     let toNull = function
         | Some x -> x
         | None -> null
+       
+    let toOption = function
+        | x when isNull x -> None
+        | x -> Some x
 
-    let combine (cacheResponse: CachedResponse) (serviceResponse: HttpResponseMessage) isStrongValidation =
+    let combine (cacheResponse: CachedValues) (serviceResponse: HttpResponseMessage) isStrongValidation =
         match isStrongValidation with
-        | true -> toHttpResponseMessage cacheResponse
+        | true -> cacheResponse.HttpResponse
         | false ->
-            let cachedContent = 
-                cacheResponse.Content
-                |> Option.map toHttpContent
-                |> toNull
-
             // TODO: if serviceResponse has no validation headers,
             // should we append the headers from the previous req?
-            serviceResponse.Content <- cachedContent
+            serviceResponse.Content <- cacheResponse.HttpResponse.Content
             serviceResponse
 
     let combineCacheResult (cacheResponse, serviceResponse: HttpResponseMessage, isStrongValidation) =
