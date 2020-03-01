@@ -1,4 +1,4 @@
-﻿module ShinyHttpCache.Serialization.CachedValues.Root
+﻿module ShinyHttpCache.Serialization.Versioned
 open ShinyHttpCache.Utils.Disposables
 open ShinyHttpCache.Serialization
 open System.IO
@@ -28,8 +28,10 @@ module private Private =
                 ((major, minor), s))
 
     let getDerializer = function
-        | (1us, 0us) -> V1.deserialize
-        | (1us, _) -> V1.deserialize
+        | (1us, 0us)
+        | (1us, _) -> 
+            Deserailizers.V1.deserialize
+            >> asyncMap Dtos.V1.fromDto
         // TODO: handle more gracefully (warn and return cache miss rather than throw)
         // TODO: better message, include current dll version + supported serializer versions
         | (major, minor) -> sprintf "Invalid serialized version %d.%d" major minor |> invalidOp
@@ -54,11 +56,10 @@ open Private
 //  version length bytes (int), version, data
 
 let serialize x =
-    Dtos.toDto x
-    |> CachedValues.Serializer.serialize
+    Dtos.Latest.toDto x
+    |> asyncBind Serializer.serialize
     |> asyncBind (fun (v, stream) -> prependVersion v stream)
 
 let deserialize s =
     getVersion s
     |> asyncBind (fun (v, s) -> getDerializer v s)
-    |> asyncMap Dtos.fromDto

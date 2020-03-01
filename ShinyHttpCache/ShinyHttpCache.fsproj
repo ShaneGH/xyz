@@ -20,6 +20,7 @@
     <Compile Include="Serialization.Dtos.Latest.fs" />
     <Compile Include="Serialization.Serializer.fs" />
     <Compile Include="Serialization.Deserializers.fs" />
+    <Compile Include="Serialization.Versioned.fs" />
     <!-- Top level -->
     <Compile Include="FSharp.CachingHttpClient.fs" />
     <!--<Compile Include="Headers.Parser.fs" />

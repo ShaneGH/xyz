@@ -10,6 +10,9 @@ open ShinyHttpCache.Model
 open ShinyHttpCache.Model.CacheSettings
 open System.Net
 open System.IO
+open ShinyHttpCache.Serialization;
+open ShinyHttpCache.Model
+open ShinyHttpCache.Utils
 
 type ICache =
     abstract member Get : string -> Stream option Async
@@ -109,7 +112,9 @@ module private Private =
 
                 match usr, shr with
                 | Some x, _
-                | _, Some x -> return Some x
+                | _, Some x -> 
+                    let! result = Versioned.deserialize x
+                    return Some result
                 | _ -> return None
             }
 
@@ -119,6 +124,7 @@ module private Private =
         | FromCache of CachedValues
         | FromServer of HttpResponseMessage
         // TODO: reduce the scope of the first arg to just the response
+        // last arg is "StrongValidation"
         | Hybrid of (CachedValues * HttpResponseMessage * bool)
 
     let toEntityTagHeader = function
@@ -152,6 +158,7 @@ module private Private =
             | NoExpiryDate -> Resp cacheResult
             | HardUtc exp when exp > DateTime.UtcNow -> Resp cacheResult
             | Soft s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult
+            | DoNotCache _
             | HardUtc _ -> Req request
             | Soft s ->
                 addValidationHeaders request s.Validator
@@ -199,34 +206,43 @@ module private Private =
 
         let execute (cache: ICachingHttpClientDependencies) =
 
-            let buildCacheKey (x: CacheControlHeaderValue option) =
-                match x with
-                | Some x when x.Private ->
+            let buildCacheKey isPrivate =
+                match isPrivate with
+                | true ->
                     cache.Cache.BuildUserKey
                     >> Option.map (buildUserCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri)
                     |> asyncMap
                     <| req
-                | _ ->
+                | false ->
                     buildSharedCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri
                     |> Some
                     |> asyncRetn
 
-            let addToCache (headers: HttpServerCacheHeaders) =
-                let expirySettings = build headers
+            let shouldCache (model: CachedValues) =
+                match model.CacheSettings.ExpirySettings with
+                | DoNotCache -> None
+                | HardUtc x when x > DateTime.UtcNow -> None
+                | _ -> Some () 
 
+            let addToCache (model: CachedValues) =
                 let cache key =
-                    let cachePut (k, settings) =
-                        buildCachedResponse response
-                        |> asyncBind (fun resp -> cache.Cache.Put (k, { HttpResponse = resp; CacheSettings = settings  }))
+                    let cachePut (k, ()) = async {
+                        use! strm = 
+                            Serializer.serialize model
+                            |> asyncMap (fun (_, strm) -> strm)
 
-                    combineOptions key expirySettings
+                        return! cache.Cache.Put (k, (), Disposables.getValue strm)
+                    }
+
+                    shouldCache model
+                    |> combineOptions key
                     |> Option.map cachePut
                     |> Option.defaultValue asyncUnit
 
-                buildCacheKey headers.CacheControl
+                buildCacheKey model.CacheSettings.SharedCache
                 |> asyncBind cache
 
-            parse response |> addToCache
+            build response |> addToCache
 
         Reader.Reader execute
         |> ReaderAsync.map (fun () -> response)
@@ -258,7 +274,7 @@ module private Private =
 
     let rec cacheValue = function
         | Hybrid x -> combineCacheResult x |> ReaderAsync.bind cacheValue
-        | FromCache x -> toHttpResponseMessage x |> ReaderAsync.retn
+        | FromCache x -> x.HttpResponse |> ReaderAsync.retn
         | FromServer x -> tryCacheValue x
 
 open Private
