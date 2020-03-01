@@ -6,7 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using ShinyHttpCache.FSharp;
-using ShinyHttpCache.Serialization.HttpResponseMessage;
+using ShinyHttpCache.Serialization;
 using static ShinyHttpCache.FSharp.CachingHttpClient;
 
 namespace ShinyHttpCache.Tests.FullRequestTests

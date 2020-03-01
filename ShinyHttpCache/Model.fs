@@ -1,8 +1,74 @@
-﻿module ShinyHttpCache.Headers.CacheSettings
-
+module ShinyHttpCache.Model
 open System
+open System.Net.Http
 open System.Net.Http.Headers
 open System.Text.RegularExpressions
+
+module CacheSettings =
+
+    // what codes are cachable
+    // what methods are cachable
+
+    // Cache-Control
+    //  private, max-age=0, no-cache
+    //  public no-store s-maxage must-revalidate proxy-revalidate no-transform
+    //  immutable stale-while-revalidate stale-if-error
+    // pragma (old)
+    // expires (old)
+    // etag
+    //  W/"asdasdasd"
+    // Last-Modified
+
+    module RevalidationSettings =
+        type EntityTag =
+            | Strong of string
+            | Weak of string
+
+        let private buildETag (etag: EntityTagHeaderValue) = 
+            match etag.IsWeak with
+            | true -> Weak etag.Tag
+            | false -> Strong etag.Tag
+
+        type Validator =
+            | ETag of EntityTag
+            | ExpirationDateUtc of DateTime
+            | Both of (EntityTag * DateTime)
+
+        type RevalidationSettings = 
+            {
+                MustRevalidateAtUtc: DateTime
+                Validator: Validator
+            }
+
+        let build (etag: EntityTagHeaderValue option, expiryUtc: DateTime option) = 
+            match etag, expiryUtc with
+            | true -> Weak x.Tag
+            | false -> Strong x.Tag
+
+    type ExpirySettings =
+        | NoExpiryDate
+        | Soft of RevalidationSettings
+        | HardUtc of DateTime
+
+    type CacheSettings =
+        {
+            ExpirySettings: ExpirySettings
+            SharedCache: bool
+        }
+
+type CachedValues =
+    {
+        HttpResponse: HttpResponseMessage
+        CacheSettings: CacheSettings.CacheSettings
+    }
+
+let build response =
+    {
+        HttpResponse = response
+        CacheSettings = null
+    }
+
+    
 
 
 module Private =
@@ -21,7 +87,7 @@ module Private =
         
         let get = 
             fun (headers: Parser.HttpServerCacheHeaders) -> headers.ETag
-            >> Option.map (function | x when x.IsWeak -> Weak x.Tag | x -> Strong x.Tag)
+            >> Option.map (function | x when x.IsWeak -> CacheSettings.Weak x.Tag | x -> CacheSettings.Strong x.Tag)
 
     module Expires =
         

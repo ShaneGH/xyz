@@ -10,10 +10,11 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.IO;
 using static ShinyHttpCache.FSharp.CachingHttpClient;
+using static ShinyHttpCache.Serialization.HttpResponseValues;
 using Microsoft.FSharp.Control;
 using System.Threading;
 using System.Linq;
-using ShinyHttpCache.Serialization.HttpResponseMessage;
+using ShinyHttpCache.Serialization;
 
 namespace ShinyHttpCache.Tests
 {
@@ -59,7 +60,7 @@ namespace ShinyHttpCache.Tests
             httpResponse.Headers.ETag = new EntityTagHeaderValue("\"asdas\"");
             httpResponse.Content.Headers.ContentLanguage.Add("es-es");
 
-            var cachedResponse = await FSharpAsync.StartAsTask(CachedResponse.build(httpResponse), null, default(CancellationToken));
+            var cachedResponse = await FSharpAsync.StartAsTask(buildCachedResponse(httpResponse), null, default(CancellationToken));
             var cacheSettings = build(cacheHeaders).Value;
 
             // act

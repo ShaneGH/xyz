@@ -1,9 +1,15 @@
-﻿module ShinyHttpCache.Serialization.Dtos
-open ShinyHttpCache.FSharp.CachingHttpClient
+﻿module ShinyHttpCache.Serialization.Dtos.V1
 open System
-open ShinyHttpCache.Headers.CacheSettings
-open ShinyHttpCache.Serialization.HttpResponseMessage
-open ShinyHttpCache
+open ShinyHttpCache.Model
+open ShinyHttpCache.Model.CacheSettings
+open ShinyHttpCache.Serialization.HttpResponseValues
+
+module Private =
+    let asyncMap f x = async {
+        let! x' = x
+        return f x'
+    }
+open Private
 
 type EntityTagDto =
     {
@@ -123,11 +129,11 @@ type CacheSettingsDto =
 type CacheValuesDto =
     {
         ShinyHttpCacheVersion: Version
-        HttpResponse: CachedResponse.CachedResponse
+        HttpResponse: CachedResponse
         CacheSettings: CacheSettingsDto
     }
 
-let toCacheSettingsDto (x: Headers.CacheSettings.CacheSettings) = 
+let toCacheSettingsDto (x: CacheSettings) = 
     {
         SharedCache = x.SharedCache
         ExpirySettings = toExpirySettingsDto x.ExpirySettings
@@ -137,18 +143,20 @@ let fromCacheSettingsDto (x: CacheSettingsDto) =
     {
         SharedCache = x.SharedCache
         ExpirySettings = fromExpirySettingsDto x.ExpirySettings
-    } : Headers.CacheSettings.CacheSettings
+    } : CacheSettings
 
 let private version = (typedefof<CacheValuesDto>).Assembly.GetName().Version
-let toDto (x: CachedValues) = 
-    {
-        ShinyHttpCacheVersion = version
-        HttpResponse = x.HttpResponse
-        CacheSettings = toCacheSettingsDto x.CacheSettings
-    }
+let toDto (x: CachedValues) =
+    buildCachedResponse x.HttpResponse
+    |> asyncMap (fun resp ->
+        {
+            ShinyHttpCacheVersion = version
+            HttpResponse = resp
+            CacheSettings = toCacheSettingsDto x.CacheSettings
+        })
 
-let fromDto (x: CacheValuesDto) = 
+let fromDto (x: CacheValuesDto) =
     {
-        HttpResponse = x.HttpResponse
+        HttpResponse = toHttpResponseMessage x.HttpResponse
         CacheSettings = fromCacheSettingsDto x.CacheSettings
     } : CachedValues

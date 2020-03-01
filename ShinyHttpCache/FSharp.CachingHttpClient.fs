@@ -4,23 +4,19 @@ open System
 open System.Net.Http.Headers
 open System.Net.Http
 open System.Threading
-open ShinyHttpCache.Serialization.HttpResponseMessage
-open ShinyHttpCache.Headers.Parser
-open ShinyHttpCache.Headers.CacheSettings
+open ShinyHttpCache.Serialization.HttpResponseValues
 open ShinyHttpCache.Utils.ReaderMonad
+open ShinyHttpCache.Model
+open ShinyHttpCache.Model.CacheSettings
 open System.Net
-
-type CachedValues =
-    {
-        HttpResponse: CachedResponse.CachedResponse
-        CacheSettings: CacheSettings
-    }
+open System.IO
 
 type ICache =
-    abstract member Get : string -> CachedValues option Async
-    abstract member Put : (string * CachedValues) -> unit Async
+    abstract member Get : string -> Stream option Async
+    //TODO: replace Unit with the unserialized version of the stream
+    abstract member Put : (string * Unit * Stream) -> unit Async
     abstract member Delete : string -> unit Async
-    abstract member BuildUserKey : CachedRequest.CachedRequest -> string option
+    abstract member BuildUserKey : CachedRequest -> string option
 
 type ICachingHttpClientDependencies =
     abstract member Cache : ICache
@@ -120,9 +116,10 @@ module private Private =
         Reader.Reader execute
 
     type HttpResponseType =
-        | FromCache of CachedResponse.CachedResponse
+        | FromCache of CachedValues
         | FromServer of HttpResponseMessage
-        | Hybrid of (CachedResponse.CachedResponse * HttpResponseMessage * bool)
+        // TODO: reduce the scope of the first arg to just the response
+        | Hybrid of (CachedValues * HttpResponseMessage * bool)
 
     let toEntityTagHeader = function
         | Strong x -> EntityTagHeaderValue(x, false)
@@ -141,8 +138,8 @@ module private Private =
 
     type CacheBehavior =
         | Req of HttpRequestMessage
-        | ReqWithValidation of (HttpRequestMessage * CachedResponse.CachedResponse * bool)
-        | Resp of CachedResponse.CachedResponse
+        | ReqWithValidation of (HttpRequestMessage * CachedValues * bool)
+        | Resp of CachedValues
 
     let isStrongValidation = function
         | Both (x, _)
@@ -152,13 +149,13 @@ module private Private =
     let sendHttpRequest (request, token) (cacheResult: CachedValues) =
         let cacheBehavior =
             match cacheResult.CacheSettings.ExpirySettings with
-            | NoExpiryDate -> Resp cacheResult.HttpResponse
-            | HardUtc exp when exp > DateTime.UtcNow -> Resp cacheResult.HttpResponse
-            | Soft s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult.HttpResponse
+            | NoExpiryDate -> Resp cacheResult
+            | HardUtc exp when exp > DateTime.UtcNow -> Resp cacheResult
+            | Soft s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult
             | HardUtc _ -> Req request
             | Soft s ->
                 addValidationHeaders request s.Validator
-                ReqWithValidation (request, cacheResult.HttpResponse, isStrongValidation s.Validator)
+                ReqWithValidation (request, cacheResult, isStrongValidation s.Validator)
 
         let execute (cache: ICachingHttpClientDependencies) =
             match cacheBehavior with
@@ -198,7 +195,7 @@ module private Private =
 
     let tryCacheValue  (response: HttpResponseMessage) =
         // TODO: http methods, response codes
-        let req = CachedRequest.build response.RequestMessage
+        let req = buildCachedRequest response.RequestMessage
 
         let execute (cache: ICachingHttpClientDependencies) =
 
@@ -219,7 +216,7 @@ module private Private =
 
                 let cache key =
                     let cachePut (k, settings) =
-                        CachedResponse.build response
+                        buildCachedResponse response
                         |> asyncBind (fun resp -> cache.Cache.Put (k, { HttpResponse = resp; CacheSettings = settings  }))
 
                     combineOptions key expirySettings
@@ -238,13 +235,13 @@ module private Private =
         | Some x -> x
         | None -> null
 
-    let combine (cacheResponse: CachedResponse.CachedResponse) (serviceResponse: HttpResponseMessage) isStrongValidation =
+    let combine (cacheResponse: CachedResponse) (serviceResponse: HttpResponseMessage) isStrongValidation =
         match isStrongValidation with
-        | true -> CachedResponse.toHttpResponseMessage cacheResponse
+        | true -> toHttpResponseMessage cacheResponse
         | false ->
             let cachedContent = 
                 cacheResponse.Content
-                |> Option.map CachedContent.toHttpContent
+                |> Option.map toHttpContent
                 |> toNull
 
             // TODO: if serviceResponse has no validation headers,
@@ -261,7 +258,7 @@ module private Private =
 
     let rec cacheValue = function
         | Hybrid x -> combineCacheResult x |> ReaderAsync.bind cacheValue
-        | FromCache x -> CachedResponse.toHttpResponseMessage x |> ReaderAsync.retn
+        | FromCache x -> toHttpResponseMessage x |> ReaderAsync.retn
         | FromServer x -> tryCacheValue x
 
 open Private
@@ -275,7 +272,7 @@ let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToke
         |> Reader.Reader
         |> ReaderAsync.map FromServer
 
-    CachedRequest.build httpRequest
+    buildCachedRequest httpRequest
     |> asyncMap Some
     |> Reader.retn
     |> ReaderAsyncOption.bind tryGetCacheResult

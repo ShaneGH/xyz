@@ -10,7 +10,8 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using static ShinyHttpCache.FSharp.CachingHttpClient;
-using ShinyHttpCache.Serialization.HttpResponseMessage;
+using static ShinyHttpCache.Serialization.HttpResponseValues;
+using ShinyHttpCache.Serialization;
 using AppTestUtils = ShinyHttpCache.Utils.TestUtils;
 
 namespace ShinyHttpCache.Tests.TestUtils
@@ -51,13 +52,13 @@ namespace ShinyHttpCache.Tests.TestUtils
                 .Returns(FSharpAsync.AwaitTask(Task.FromResult(AppTestUtils.unit)));
 
             dependencies
-                .Setup(x => x.Cache.BuildUserKey(It.IsAny<CachedRequest.CachedRequest>()))
-                .Returns<CachedRequest.CachedRequest>(GetUserKey);
+                .Setup(x => x.Cache.BuildUserKey(It.IsAny<CachedRequest>()))
+                .Returns<CachedRequest>(GetUserKey);
 
             return dependencies;
         }
 
-        private static FSharpOption<string> GetUserKey(CachedRequest.CachedRequest msg)
+        private static FSharpOption<string> GetUserKey(CachedRequest msg)
         {
             if (!msg.Headers.Any(x => x.Key == UserHeader))
             {
@@ -157,7 +158,7 @@ namespace ShinyHttpCache.Tests.TestUtils
             async Task<FSharpOption<CachedValues>> ReturnsAsync()
             {
                 var resp = await FSharpAsync.StartAsTask(
-                    CachedResponse.build(response), 
+                    buildCachedResponse(response), 
                     FSharpOption<TaskCreationOptions>.None, 
                     FSharpOption<CancellationToken>.None);
 

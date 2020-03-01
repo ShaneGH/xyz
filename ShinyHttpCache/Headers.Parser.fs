@@ -1,41 +1,7 @@
 ﻿module ShinyHttpCache.Headers.Parser
 open System
 open System.Net.Http.Headers
-open System.Globalization
 open System.Net.Http
-
-// type ClientCacheHeaders =
-//     {
-//         IfModifiedSince: string option
-//         IfNoneMatch: string option
-//     }
-
-type ParseResult<'a> =
-    | Success of 'a
-    | Failure of string list
-    | NoResult
-
-
-module private Private1 =
-    //let dateFormats = 
-    // might need this in the future
-    //    [|
-    //        "ddd, dd MMM yyyy HH:mm:ss 'GMT'"
-    //        "dddd, dd-MMM-yy HH:mm:ss 'GMT'"
-    //        "ddd MMM d HH:mm:ss yyyy"
-    //    |]
-    //let parseDate d =
-    //    let parseResult = DateTime.TryParseExact(d, dateFormats, CultureInfo.InvariantCulture,
-    //                          DateTimeStyles.AllowInnerWhite)
-
-    //    match parseResult with
-    //    | (false, _) -> None
-    //    | (true, x) -> DateTime(x.Ticks, DateTimeKind.Utc) |> Some
-
-    let nullToNone = function | null -> None | y -> Some y
-
-    let nullableToNone (x: 'a Nullable) = match x.HasValue with | true -> Some x.Value | false -> None
-open Private1
 
 type HttpServerCacheHeaders =
     {
@@ -47,7 +13,11 @@ type HttpServerCacheHeaders =
         Vary: string option
     }
 
-module private Private2 =
+module private Private =
+
+    let nullToNone = function | null -> None | y -> Some y
+
+    let nullableToNone (x: 'a Nullable) = match x.HasValue with | true -> Some x.Value | false -> None
         
     let parseHeaders (headers: HttpResponseHeaders) expires lastModified =
 
@@ -60,7 +30,7 @@ module private Private2 =
             Vary = None // TODO
         }
 
-open Private2
+open Private
 
 let parse (message: HttpResponseMessage) =
     let (expires, lastModified) = 

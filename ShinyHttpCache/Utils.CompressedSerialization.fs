@@ -1,4 +1,4 @@
-﻿module ShinyHttpCache.Serialization.CompressedSerialization
+﻿module ShinyHttpCache.Utils.CompressedSerialization
 open Microsoft.FSharp.Reflection
 open ShinyHttpCache.Utils
 open System

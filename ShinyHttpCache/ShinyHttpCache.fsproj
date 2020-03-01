@@ -7,21 +7,27 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Utils -->
     <Compile Include="Utils.Disposables.fs" />
     <Compile Include="Utils.ReaderMonad.fs" />
     <Compile Include="Utils.TestUtils.fs" />
-    <Compile Include="Headers.Parser.fs" />
+    <Compile Include="Utils.CompressedSerialization.fs" />
+    <!-- Models -->
+    <Compile Include="Model.fs" />
+    <!-- Serializer-->
+    <Compile Include="Serialization.HttpResponseValues.fs" />
+    <Compile Include="Serialization.Dtos.V1.fs" />
+    <Compile Include="Serialization.Dtos.Latest.fs" />
+    <Compile Include="Serialization.Serializer.fs" />
+    <Compile Include="Serialization.Deserializers.fs" />
+    <!-- Top level -->
+    <Compile Include="FSharp.CachingHttpClient.fs" />
+    <!--<Compile Include="Headers.Parser.fs" />
     <Compile Include="Headers.CacheTime.fs" />
     <Compile Include="Headers.CacheSettings.fs" />
-    <Compile Include="Model.CachedValues.fs" />
-    <Compile Include="Serialization.HttpResponseMessage.fs" />
-    <Compile Include="FSharp.CachingHttpClient.fs" />
-    <Compile Include="Serialization.CompressedSerialization.fs" />
-    <Compile Include="Serialization.Dtos.fs" />
-    <Compile Include="Serialization.CachedValues.V1.fs" />
     <Compile Include="Serialization.CachedValues.Serializer.fs" />
     <Compile Include="Serialization.CachedValues.fs" />
-    <Compile Include="CSharp.CacheHttpMessageHandler.fs" />
+    <Compile Include="CSharp.CacheHttpMessageHandler.fs" />-->
   </ItemGroup>
 
 </Project>

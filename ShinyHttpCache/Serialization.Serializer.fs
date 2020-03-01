@@ -1,5 +1,7 @@
 ﻿module ShinyHttpCache.Serialization.CachedValues.Serializer
+
 open ShinyHttpCache.Serialization
+open ShinyHttpCache.Utils
 
 module private Private =
     let asyncMap f x = async { 
@@ -9,5 +11,5 @@ module private Private =
 open Private
 
 let serialize x = 
-    CompressedSerialization.serialize<Dtos.CacheValuesDto> x
+    CompressedSerialization.serialize<Dtos.Latest.CacheValuesDto> x
     |> asyncMap (fun x -> ((1us, 0us), x))

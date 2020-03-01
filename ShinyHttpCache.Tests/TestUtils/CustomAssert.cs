@@ -4,7 +4,7 @@ using System;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
-using ShinyHttpCache.Serialization.HttpResponseMessage;
+using static ShinyHttpCache.Serialization.HttpResponseValues;
 
 namespace ShinyHttpCache.Tests.TestUtils
 {
@@ -39,7 +39,7 @@ namespace ShinyHttpCache.Tests.TestUtils
             CollectionAssert.AreEqual(new[] { expectedContent }, content);
         }
 
-        public static void AssertCachedResponse(byte expectedContent, CachedResponse.CachedResponse response)
+        public static void AssertCachedResponse(byte expectedContent, CachedResponse response)
         {
             Assert.NotNull(response.Content.Value);
             CollectionAssert.AreEqual(response.Content.Value.Content, new [] { expectedContent });
