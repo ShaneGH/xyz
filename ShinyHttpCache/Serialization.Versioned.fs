@@ -55,10 +55,9 @@ open Private
 // Structure:
 //  version length bytes (int), version, data
 
-let serialize x =
-    Dtos.Latest.toDto x
-    |> asyncBind Serializer.serialize
-    |> asyncBind (fun (v, stream) -> prependVersion v stream)
+let serialize =
+    Serializer.serialize
+    >> asyncBind (fun (v, stream) -> prependVersion v stream)
 
 let deserialize s =
     getVersion s

@@ -39,6 +39,8 @@ type ICachingHttpClientDependencies =
 // Last-Modified
 
 module private Private =
+
+
     let private getMethodKey (method: HttpMethod) =
         match method with
         | x when x = HttpMethod.Get -> "G"
@@ -158,7 +160,6 @@ module private Private =
             | NoExpiryDate -> Resp cacheResult
             | HardUtc exp when exp > DateTime.UtcNow -> Resp cacheResult
             | Soft s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult
-            | DoNotCache _
             | HardUtc _ -> Req request
             | Soft s ->
                 addValidationHeaders request s.Validator
@@ -220,7 +221,6 @@ module private Private =
 
             let shouldCache (model: CachedValues) =
                 match model.CacheSettings.ExpirySettings with
-                | DoNotCache -> None
                 | HardUtc x when x > DateTime.UtcNow -> None
                 | _ -> Some () 
 
@@ -242,10 +242,12 @@ module private Private =
                 buildCacheKey model.CacheSettings.SharedCache
                 |> asyncBind cache
 
-            build response |> addToCache
+            build response 
+            |> Option.map addToCache
+            |> traverseAsyncOpt
 
         Reader.Reader execute
-        |> ReaderAsync.map (fun () -> response)
+        |> ReaderAsyncOption.map (fun () -> response)
        
     let toNull = function
         | Some x -> x
@@ -273,7 +275,7 @@ module private Private =
 
     let rec cacheValue = function
         | Hybrid x -> combineCacheResult x |> ReaderAsync.bind cacheValue
-        | FromCache x -> x.HttpResponse |> ReaderAsync.retn
+        | FromCache x -> x.HttpResponse |> ReaderAsyncOption.retn
         | FromServer x -> tryCacheValue x
 
 open Private

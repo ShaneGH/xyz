@@ -43,7 +43,6 @@ module CacheSettings =
         | NoExpiryDate
         | Soft of RevalidationSettings
         | HardUtc of DateTime
-        | DoNotCache
 
     type CacheSettings =
         {
@@ -103,11 +102,7 @@ module CacheSettings =
 
         match noStore, immutable, etag, expires with
         | true, _, _, _
-        | false, false, None, None -> 
-            {
-                SharedCache = sharedCache
-                ExpirySettings = DoNotCache
-            }
+        | false, false, None, None -> None
         | false, false, Some x, None -> 
             {
                 SharedCache = sharedCache
@@ -116,7 +111,7 @@ module CacheSettings =
                         MustRevalidateAtUtc = forceRevalidation
                         Validator = ETag x
                     } |> Soft 
-            }
+            } |> Some
         | false, false, None, Some x-> 
             {
                 SharedCache = sharedCache
@@ -125,7 +120,7 @@ module CacheSettings =
                         MustRevalidateAtUtc = x
                         Validator = ExpirationDateUtc x
                     } |> Soft 
-            }
+            } |> Some
         | false, false, Some x, Some y-> 
             {
                 SharedCache = sharedCache
@@ -134,13 +129,13 @@ module CacheSettings =
                         MustRevalidateAtUtc = y
                         Validator = Both (x, y)
                     } |> Soft 
-            }
+            } |> Some
         // TODO: move this to higher priority when https://tools.ietf.org/html/rfc8246 becomes "Proposed Standard"
         | false, true, _, _ ->
             {
                 SharedCache = sharedCache
                 ExpirySettings = NoExpiryDate
-            }
+            } |> Some
 
 type CachedValues =
     {
@@ -149,10 +144,12 @@ type CachedValues =
     }
 
 let build response =
-    {
-        HttpResponse = response
-        CacheSettings = CacheSettings.build response
-    }
+    CacheSettings.build response
+    |> Option.map (fun x ->
+        {
+            HttpResponse = response
+            CacheSettings = x
+        })
 
     
 

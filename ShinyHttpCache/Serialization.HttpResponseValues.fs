@@ -114,14 +114,16 @@ type CachedResponse =
     }
     
 let buildCachedResponse (resp: HttpResponseMessage) =
-    let c = 
+    let content = 
         resp.Content 
         |> toOption 
         |> Option.map buildCachedContent 
         |> invertOpt
+
     let req = buildCachedRequest resp.RequestMessage
+        
     async {
-        let! c' = c
+        let! c' = content
         let! r' = req
 
         return {
