@@ -4,6 +4,8 @@ open System
 open System.Net.Http.Headers
 open System.Net.Http
 open System.Threading
+open ShinyHttpCache
+open ShinyHttpCache.Dependencies
 open ShinyHttpCache.Serialization.HttpResponseValues
 open ShinyHttpCache.Utils.ReaderMonad
 open ShinyHttpCache.Model
@@ -13,17 +15,6 @@ open System.IO
 open ShinyHttpCache.Serialization;
 open ShinyHttpCache.Model
 open ShinyHttpCache.Utils
-
-type ICache =
-    abstract member Get : key: string -> Stream option Async
-    //TODO: replace Unit with the unserialized version of the stream
-    abstract member Put : key: string -> cacheData: Unit -> serializedCacheData: Stream -> unit Async
-    abstract member Delete : key: string -> unit Async
-    abstract member BuildUserKey : CachedRequest -> string option
-
-type ICachingHttpClientDependencies =
-    abstract member Cache : ICache
-    abstract member Send : (HttpRequestMessage * CancellationToken) -> HttpResponseMessage Async
 
 // what codes are cachable
 // what methods are cachable
@@ -93,20 +84,20 @@ module private Private =
     let asyncUnit = asyncRetn ()
 
     let tryGetCacheResult req =
-        let execute (cache: ICachingHttpClientDependencies) =
-            let userKey = cache.Cache.BuildUserKey req
+        let execute (cache: CachingHttpClientDependencies) =
+            let userKey = buildUserKey cache req
 
             let reqMethod = HttpMethod(req.Method)
             let userResult = 
                 userKey 
                 |> Option.map (buildUserCacheKey reqMethod req.Uri)
-                |> Option.map cache.Cache.Get
+                |> Option.map (get cache)
                 |> traverseAsyncOpt
                 |> asyncMap squashOptions
 
             let sharedResult = 
                 buildSharedCacheKey reqMethod req.Uri
-                |> cache.Cache.Get
+                |> get cache
 
             async {
                 let! usr = userResult
@@ -165,17 +156,17 @@ module private Private =
                 addValidationHeaders request s.Validator
                 ReqWithValidation (request, cacheResult, isStrongValidation s.Validator)
 
-        let execute (cache: ICachingHttpClientDependencies) =
+        let execute (cache: CachingHttpClientDependencies) =
             match cacheBehavior with
             | Resp x -> 
                 FromCache x
                 |> asyncRetn
             | ReqWithValidation (req, cachedResp, strongValidation) ->
-                cache.Send (req, token)
+                send cache req token
                 |> asyncMap (fun resp -> (cachedResp, resp, strongValidation))
                 |> asyncMap Hybrid
             | Req x ->
-                cache.Send (x, token)
+                send cache x token
                 |> asyncMap FromServer
         
         execute
@@ -205,12 +196,12 @@ module private Private =
         // TODO: http methods, response codes
         let req = buildCachedRequest response.RequestMessage
 
-        let execute (cache: ICachingHttpClientDependencies) =
+        let execute (cache: CachingHttpClientDependencies) =
 
             let buildCacheKey isPrivate =
                 match isPrivate with
                 | true ->
-                    cache.Cache.BuildUserKey
+                    buildUserKey cache
                     >> Option.map (buildUserCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri)
                     |> asyncMap
                     <| req
@@ -231,7 +222,7 @@ module private Private =
                             Serializer.serialize model
                             |> asyncMap (fun (_, strm) -> strm)
 
-                        return! cache.Cache.Put k () (Disposables.getValue strm)
+                        return! put cache k () (Disposables.getValue strm)
                     }
 
                     shouldCache model
@@ -284,8 +275,8 @@ let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToke
     
     let validateCachedResult = sendHttpRequest (httpRequest, cancellationToken)
     let sendFromHttpClient () = 
-        fun (cache: ICachingHttpClientDependencies) ->
-            cache.Send (httpRequest, cancellationToken)
+        fun (cache: CachingHttpClientDependencies) ->
+            send cache httpRequest cancellationToken
         |> Reader.Reader
         |> ReaderAsync.map FromServer
 
@@ -296,3 +287,4 @@ let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToke
     |> ReaderAsyncOption.bind validateCachedResult
     |> ReaderAsyncOption.defaultWith sendFromHttpClient
     |> ReaderAsync.bind cacheValue
+    |> Reader.mapReader Dependencies.create

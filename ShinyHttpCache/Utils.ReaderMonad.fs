@@ -34,6 +34,10 @@ module Reader =
 
         Reader newAction
 
+    let mapReader f action =
+        let newAction api = run (f api) action
+        Reader newAction
+
 [<RequireQualifiedAccess>]
 module ReaderAsync =
 

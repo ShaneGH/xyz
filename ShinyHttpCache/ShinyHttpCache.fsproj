@@ -21,6 +21,7 @@
     <Compile Include="Serialization.Serializer.fs" />
     <Compile Include="Serialization.Deserializers.fs" />
     <Compile Include="Serialization.Versioned.fs" />
+    <Compile Include="Dependencies.fs" />
     <!-- Top level -->
     <Compile Include="FSharp.CachingHttpClient.fs" />
     <!--<Compile Include="Headers.Parser.fs" />
