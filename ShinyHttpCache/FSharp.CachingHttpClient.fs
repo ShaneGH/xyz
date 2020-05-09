@@ -15,10 +15,10 @@ open ShinyHttpCache.Model
 open ShinyHttpCache.Utils
 
 type ICache =
-    abstract member Get : string -> Stream option Async
+    abstract member Get : key: string -> Stream option Async
     //TODO: replace Unit with the unserialized version of the stream
-    abstract member Put : (string * Unit * Stream) -> unit Async
-    abstract member Delete : string -> unit Async
+    abstract member Put : key: string -> cacheData: Unit -> serializedCacheData: Stream -> unit Async
+    abstract member Delete : key: string -> unit Async
     abstract member BuildUserKey : CachedRequest -> string option
 
 type ICachingHttpClientDependencies =
@@ -231,7 +231,7 @@ module private Private =
                             Serializer.serialize model
                             |> asyncMap (fun (_, strm) -> strm)
 
-                        return! cache.Cache.Put (k, (), Disposables.getValue strm)
+                        return! cache.Cache.Put k () (Disposables.getValue strm)
                     }
 
                     shouldCache model

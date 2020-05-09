@@ -15,7 +15,7 @@ module private Private =
     }
 open Private
 
-let serialize x = 
-    Dtos.Latest.toDto x
-    |> asyncBind CompressedSerialization.serialize<Dtos.Latest.CacheValuesDto>
-    |> asyncMap (fun x -> ((1us, 0us), x))
+let serialize = 
+    Dtos.Latest.toDto
+    >> asyncBind CompressedSerialization.serialize<Dtos.Latest.CacheValuesDto>
+    >> asyncMap (fun x -> ((1us, 0us), x))
