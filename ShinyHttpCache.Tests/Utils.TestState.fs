@@ -3,15 +3,22 @@ open System.Collections.Generic
 open System.IO
 open System.Threading
 open ShinyHttpCache
+open ShinyHttpCache.Dependencies
 open ShinyHttpCache.Model.CacheSettings
 open ShinyHttpCache.Serialization.Dtos.V1
 open System
 open System.Net.Http
-open Moq
+open Foq
 open ShinyHttpCache.FSharp.CachingHttpClient
 open ShinyHttpCache.Serialization.HttpResponseValues
 open ShinyHttpCache.Utils
 open ShinyHttpCache.Utils.ReaderMonad
+
+type State =
+    {
+        dependencies: Mock<ICachingHttpClientDependencies>
+        cache: Mock<ICache>
+    }
 
 module Private =
     let asyncRetn x = async { return x }
@@ -36,26 +43,29 @@ let private getUserKey(msg: CachedRequest) =
         |> flatten
         
 let build () =
+    let cache = Mock<ICache>()
     let dependencies = Mock<ICachingHttpClientDependencies>()
     
-    let yy = asyncRetn<Stream option> None
-    dependencies
-        .Setup(fun x -> <@ x.Cache.Get(It.IsAny<string>()) @>)
-        .Returns(yy) |> ignore
+    cache
+        .Setup(fun x -> <@ x.Get(It.IsAny<string>()) @>)
+        .Returns(asyncRetn None) |> ignore
 
-    dependencies
-        .Setup(fun x -> <@ x.Cache.Put (It.IsAny<string>()) (It.IsAny<Unit>()) (It.IsAny<Stream>()) @>)
-        .Returns(<@ asyncRetn () @>) |> ignore
+    cache
+        .Setup(fun x -> <@ x.Put (It.IsAny<string>()) (It.IsAny<Unit>()) (It.IsAny<Stream>()) @>)
+        .Returns(asyncRetn ()) |> ignore
 
-    dependencies
-        .Setup(fun x -> <@ x.Cache.Delete(It.IsAny<string>()) @>)
-        .Returns(<@ asyncRetn () @>)  |> ignore
+    cache
+        .Setup(fun x -> <@ x.Delete(It.IsAny<string>()) @>)
+        .Returns(asyncRetn ())  |> ignore
 
-    dependencies
-        .Setup(fun x -> <@ x.Cache.BuildUserKey(It.IsAny<CachedRequest>()) @>)
-        .Returns(fun x -> <@ getUserKey x @>)  |> ignore
+    cache
+        .Setup(fun x -> <@ x.BuildUserKey(It.IsAny<CachedRequest>()) @>)
+        .Calls<CachedRequest>(fun x -> getUserKey x)  |> ignore
 
-    dependencies
+    {
+        dependencies = dependencies
+        cache = cache
+    }
     
 module HttpRequestMock =
     type Args =
@@ -77,7 +87,7 @@ module HttpRequestMock =
     let setResponseCode responseCode x = { x with responseCode = responseCode  }
 open HttpRequestMock
         
-let addHttpRequest args (dependencies: Mock<ICachingHttpClientDependencies>)=
+let addHttpRequest args (state: State)=
     let response = new HttpResponseMessage()
     match args.addResponseContent with
     | Some x -> response.Content <- new SingleByteContent.SingleByteContent(x) :> HttpContent
@@ -99,11 +109,11 @@ let addHttpRequest args (dependencies: Mock<ICachingHttpClientDependencies>)=
         fun (msg: HttpRequestMessage, c) -> msg.RequestUri = Uri(args.url);
         |> createPredicate
 
-    dependencies
-        .Setup(fun x -> <@ x.Send(Match.Create(assertUrl)) @>)
-        .Returns(fun x -> <@ returnResponse x @>)  |> ignore
+    state.dependencies
+        .Setup(fun x -> <@ x.Send(is(fun (msg: HttpRequestMessage, c: CancellationToken) -> msg.RequestUri = Uri(args.url))) @>)
+        .Calls<(HttpRequestMessage * CancellationToken)>(returnResponse)  |> ignore
     
-    dependencies
+    state
 
 module CachedData =
     type Args =
@@ -140,7 +150,7 @@ module CachedData =
     let addCustomHeader customHeader x = { x with customHeaders = customHeader :: x.customHeaders  }
 open CachedData
 
-let addToCache args (dependencies: Mock<ICachingHttpClientDependencies>) =
+let addToCache args (state: State) =
     
     let response = new HttpResponseMessage()
     response.RequestMessage <- new HttpRequestMessage()
@@ -182,8 +192,8 @@ let addToCache args (dependencies: Mock<ICachingHttpClientDependencies>) =
         return Some str
     }
         
-    dependencies
-        .Setup(fun x -> <@ x.Cache.Get(key) @>)
-        .Returns(fun _ -> <@ resp @>)  |> ignore
+    state.cache
+        .Setup(fun x -> <@ x.Get(key) @>)
+        .Returns(resp)  |> ignore
         
-    dependencies
+    state

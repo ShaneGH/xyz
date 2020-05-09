@@ -3,7 +3,7 @@ open System.Threading
 open System
 open System.Net.Http
 open System.Threading.Tasks
-open Moq
+open Foq
 open ShinyHttpCache.FSharp.CachingHttpClient
 open ShinyHttpCache.Utils.ReaderMonad
 
@@ -24,7 +24,12 @@ module ExecuteRequestArgs =
     let setUser user x = { x with user = user  }
 open ExecuteRequestArgs
     
-let executeRequest args (dependencies: Mock<ICachingHttpClientDependencies>) =
+let executeRequest args (state: TestState.State) =
+
+    state.dependencies
+        .Setup(fun x -> <@ x.Cache @>)
+        .Returns(state.cache.Create())  |> ignore
+
     let request = new HttpRequestMessage()
     request.RequestUri <- Uri(args.url)
     
@@ -33,6 +38,6 @@ let executeRequest args (dependencies: Mock<ICachingHttpClientDependencies>) =
     | None -> ()
 
     let reader = client(request, Unchecked.defaultof<CancellationToken>)
-    Reader.run dependencies.Object reader
+    Reader.run (state.dependencies.Create()) reader
     
 let asTask x = Async.StartAsTask x |> (fun x -> x :> Task)
