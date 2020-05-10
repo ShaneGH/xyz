@@ -27,7 +27,7 @@ module private Private =
                 let minor = System.BitConverter.ToUInt16(bytes, 2)
                 ((major, minor), s))
 
-    let getDerializer = function
+    let getDeserializer = function
         | (1us, 0us)
         | (1us, _) -> 
             Deserailizers.V1.deserialize
@@ -61,4 +61,4 @@ let serialize =
 
 let deserialize s =
     getVersion s
-    |> asyncBind (fun (v, s) -> getDerializer v s)
+    |> asyncBind (fun (v, s) -> getDeserializer v s)

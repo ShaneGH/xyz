@@ -8,6 +8,7 @@ open System.Reflection
 open System.Text.Json
 open System.Text.Json.Serialization
 open System.Threading
+open ShinyHttpCache.Utils.Disposables
 
 module Converters =
 
@@ -16,8 +17,10 @@ module Converters =
             match actual with
             | x when x = expected -> ()
             | _ -> sprintf "Invalid token type %A. Expecting %A." actual expected |> JsonException |> raise
+            
+        let isNullable (t: Type) = t.IsConstructedGenericType && t.GetGenericTypeDefinition() = typedefof<Nullable<_>>
 
-        let getConstructorArgs (constructor: ConstructorInfo) (values: (string * obj) list) =
+        let getConstructorArgs (constructor: ConstructorInfo) (values: (string * obj) list) implicitNulls =
             constructor.GetParameters()
             |> Array.map (fun arg -> 
                 values
@@ -25,12 +28,19 @@ module Converters =
                     k.Equals(arg.Name, StringComparison.InvariantCultureIgnoreCase))
                 |> List.map (fun (_, v) -> v)
                 |> List.tryHead
-                |> Option.defaultWith (fun () -> sprintf "Could not find value for record type property %s" arg.Name |> JsonException |> raise))
+                |> Option.defaultWith (fun () ->
+                    match (implicitNulls, arg.ParameterType.IsValueType) with
+                    | true, false -> null
+                    // TODO: reflection
+                    | true, _ when isNullable arg.ParameterType -> null
+                    | _ ->
+                        sprintf "Could not find value for record type property \"%s\"" arg.Name |> JsonException |> raise))
 
-        let buildRecordType (typ: Type) values =
+        let buildRecordType (typ: Type) values implicitNulls =
+            // TODO: reflection
             match typ.GetConstructors() with
             | [|constructor|] -> 
-                getConstructorArgs constructor values
+                getConstructorArgs constructor values implicitNulls
                 |> constructor.Invoke
             | _ -> sprintf "Could not find constructor for record type %A" typ |> JsonException |> raise
 
@@ -71,7 +81,7 @@ module Converters =
                 | false -> 
                     JsonException "Unexpected end of JSON sequence" |> raise
 
-            buildRecordType typeToConvert values
+            buildRecordType typeToConvert values options.IgnoreNullValues
     open Private1
     
     type RecordTypeConverter() =
@@ -81,7 +91,84 @@ module Converters =
 
         override __.Read(reader, typeToConvert, options) = read (&reader, typeToConvert, options)
 
-        override __.Write(writer, value, options) = JsonSerializer.Serialize(writer, value, options)
+        override __.Write(writer, value, options) =
+            // todo: reflection
+            match value with
+            | null -> ()
+            | x ->
+                writer.WriteStartObject()
+                x.GetType().GetFields()
+                |> Array.map (fun f ->
+                    match f.GetValue x, options.IgnoreNullValues with
+                    | null, true -> ()
+                    | value, _ ->
+                        writer.WritePropertyName f.Name
+                        JsonSerializer.Serialize(writer, value, options)
+                )
+                |> ignore
+                
+                x.GetType().GetProperties()
+                |> Array.map (fun p ->
+                    match p.GetValue x, options.IgnoreNullValues with
+                    | null, true -> ()
+                    | value, _ ->
+                        writer.WritePropertyName p.Name
+                        JsonSerializer.Serialize(writer, value, options)
+                )
+                |> ignore
+                
+                writer.WriteEndObject()
+    
+    type ReferenceTypeOptionConverter<'a when 'a : null>() =
+        inherit JsonConverter<'a option>()
+        
+        override __.Read(reader, typeToConvert, options) =
+            let result = JsonSerializer.Deserialize(&reader, typedefof<'a>, options) :?> 'a
+            match result with
+            | null -> None
+            | x -> Some x
+
+        override __.Write(writer, value, options) =
+            match value with
+            | Some x -> JsonSerializer.Serialize(writer, x, options)
+            | None -> JsonSerializer.Serialize(writer, Unchecked.defaultof<'a>, options)
+        
+    type ValueTypeOptionConverter<'a when 'a :> ValueType and 'a : struct and 'a : (new: Unit -> 'a)>() =
+        inherit JsonConverter<'a option>()
+        
+        override __.Read(reader, typeToConvert, options) =
+            let result = JsonSerializer.Deserialize(&reader, typedefof<Nullable<'a>>, options) :?> Nullable<'a>
+            match result.HasValue with
+            | false -> None
+            | true -> Some result.Value
+
+        override __.Write(writer, value, options) =
+            match value with
+            | Some x -> JsonSerializer.Serialize(writer, x, options)
+            | None -> JsonSerializer.Serialize(writer, Unchecked.defaultof<Nullable<'a>>, options)
+        
+    type OptionConvertorFactory() =
+        inherit JsonConverterFactory()
+        
+        override __.CanConvert typeToConvert =
+            // TODO: reflection
+            match typeToConvert.IsGenericType with
+            | true -> typeToConvert.GetGenericTypeDefinition() = typedefof<Option<_>>
+            | false -> false
+        
+        override __.CreateConverter (typ, options) =
+            let optionType = typ.GetGenericArguments().[0]
+            
+            // TODO: reflection
+            match optionType.IsValueType with
+            | true ->
+                typedefof<ValueTypeOptionConverter<_>>.MakeGenericType optionType
+                |> Activator.CreateInstance
+                :?> JsonConverter
+            | false ->
+                typedefof<ReferenceTypeOptionConverter<_>>.MakeGenericType optionType
+                |> Activator.CreateInstance
+                :?> JsonConverter
 
 module private Private =
     let asyncMap f x = async { 
@@ -135,11 +222,24 @@ module private Private =
 
 open Private
 
+let private buildSerializationOptions isDeserialize =
+    // TODO: there is caching that can be done here
+    let options = JsonSerializerOptions()
+    options.IgnoreNullValues <- true
+    
+//    match isDeserialize with
+//    | true -> options.Converters.Add(Converters.RecordTypeConverter())
+    options.Converters.Add(Converters.RecordTypeConverter())
+    //| false -> ()
+    
+    options.Converters.Add(Converters.OptionConvertorFactory())
+    options
+
 let serialize<'a> (dto: 'a) =
     let ms = new MemoryStream() :> Stream
-    JsonSerializer.SerializeAsync(ms, dto, typedefof<'a>, null, Unchecked.defaultof<CancellationToken>)
+    JsonSerializer.SerializeAsync(ms, dto, typedefof<'a>, buildSerializationOptions false, Unchecked.defaultof<CancellationToken>)
     |> Async.AwaitTask
-    |> asyncMap (fun _ -> 
+    |> asyncMap (fun _ ->
         ms.Position <- 0L
         Disposables.buildFromDisposable ms [])
     |> asyncBind compress
@@ -150,9 +250,7 @@ let deserialize<'a> s =
         use! str = Disposables.build s [] |> decompress
         
         let s = Disposables.getValue str
-        let options = JsonSerializerOptions()
-        options.Converters.Add(Converters.RecordTypeConverter())
-        let dtoT = JsonSerializer.DeserializeAsync<'a> (s, options)
+        let dtoT = JsonSerializer.DeserializeAsync<'a> (s, buildSerializationOptions true)
 
         let! dto = dtoT.AsTask() |> Async.AwaitTask
         return dto

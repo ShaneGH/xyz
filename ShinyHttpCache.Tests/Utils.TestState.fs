@@ -179,9 +179,8 @@ let addToCache args (state: ICachingHttpClientDependenciesMethods) =
     let resp = async {
         use! resp =
             match Model.build response with
-            | Some x -> Serialization.Serializer.serialize x
+            | Some x -> Serialization.Versioned.serialize x
             | None -> invalidOp "Expected Some"
-            |> asyncMap (fun (_, x) -> x)
             
         // copy value so that original stream can be disposed of
         let respStr = Disposables.getValue resp

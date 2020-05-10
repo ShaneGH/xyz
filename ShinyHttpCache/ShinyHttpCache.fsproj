@@ -10,8 +10,8 @@
     <!-- Utils -->
     <Compile Include="Utils.Disposables.fs" />
     <Compile Include="Utils.ReaderMonad.fs" />
-    <Compile Include="Utils.TestUtils.fs" />
     <Compile Include="Utils.CompressedSerialization.fs" />
+    <Compile Include="Utils.SerializableVersion.fs" />
     <!-- Models -->
     <Compile Include="Model.fs" />
     <!-- Serializer-->

@@ -4,6 +4,8 @@ open System
 open System.Collections.Generic
 open System.Net
 open System.Net.Http
+open ShinyHttpCache.Utils
+open ShinyHttpCache.Utils
 
 module private Private = 
     let toCSharpList (seq: 'a seq) = List<'a> seq
@@ -62,7 +64,7 @@ let toHttpContent cachedContent =
     
 type CachedRequest =
     {
-        Version: Version;
+        Version: List<int>;
         Method: string;
         Uri: Uri;
         Content: CachedContent option;
@@ -77,7 +79,7 @@ let buildCachedRequest (req: HttpRequestMessage) =
     |> Option.map buildCachedContent
     |> invertOpt
     |> asyncMap (fun c -> {
-        Version = req.Version;
+        Version = SerializableVersion.fromSemanticVersion req.Version;
         Method = req.Method.Method;
         Uri = req.RequestUri;
         Content = c;
@@ -91,7 +93,7 @@ let buildCachedRequest (req: HttpRequestMessage) =
 let toHttpRequestMessage req =
     let output = new HttpRequestMessage ()
     
-    output.Version <- req.Version
+    output.Version <- SerializableVersion.toSemanticVersion req.Version
     output.Method <- HttpMethod(req.Method)
     output.RequestUri <- req.Uri
     output.Content <- 
@@ -105,7 +107,7 @@ let toHttpRequestMessage req =
     
 type CachedResponse =
     {
-        Version: Version
+        Version: List<int>
         StatusCode: HttpStatusCode
         ReasonPhrase: string
         Content: CachedContent option
@@ -127,7 +129,7 @@ let buildCachedResponse (resp: HttpResponseMessage) =
         let! r' = req
 
         return {
-            Version = resp.Version;
+            Version = SerializableVersion.fromSemanticVersion resp.Version;
             StatusCode = resp.StatusCode;
             ReasonPhrase = resp.ReasonPhrase;
             Content = c';
@@ -141,7 +143,7 @@ let buildCachedResponse (resp: HttpResponseMessage) =
 let toHttpResponseMessage resp =
     let output = new HttpResponseMessage ()
     
-    output.Version <- resp.Version
+    output.Version <- SerializableVersion.toSemanticVersion  resp.Version
     output.StatusCode <- resp.StatusCode
     output.ReasonPhrase <- resp.ReasonPhrase
     output.Content <-

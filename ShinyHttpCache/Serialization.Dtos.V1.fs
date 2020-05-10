@@ -3,6 +3,7 @@ open System
 open ShinyHttpCache.Model
 open ShinyHttpCache.Model.CacheSettings
 open ShinyHttpCache.Serialization.HttpResponseValues
+open ShinyHttpCache.Utils
 
 module Private =
     let asyncMap f x = async {
@@ -38,7 +39,7 @@ let fromEntityTagDto x =
 type ValidatorDto =
     {
         Type: char
-        ETag: EntityTagDto
+        ETag: EntityTagDto option
         ExpirationDateUtc: Nullable<DateTime>
     }
 
@@ -46,28 +47,30 @@ let toValidatorDto = function
     | ETag x ->
         {
             Type = 't'
-            ETag = toEntityTagDto x
+            ETag = toEntityTagDto x |> Some
             ExpirationDateUtc = Nullable<DateTime>()
         }
     | ExpirationDateUtc x ->
         {
             Type = 'd'
-            ETag = null :> obj :?> EntityTagDto
+            ETag = None
             ExpirationDateUtc = Nullable<DateTime> x
         }
     | Both (x, y) ->
         {
             Type = 'b'
-            ETag = toEntityTagDto x
+            ETag = toEntityTagDto x |> Some
             ExpirationDateUtc = Nullable<DateTime> y
         }
 
-let fromValidarorDto x =
-    match x.Type with
-    | 't' -> fromEntityTagDto x.ETag |> ETag 
-    | 'd' -> x.ExpirationDateUtc.Value |> ExpirationDateUtc
-    | 'b' -> (fromEntityTagDto x.ETag, x.ExpirationDateUtc.Value) |> Both
-    | x -> sprintf "Invalid Validator type: '%c'" x |> invalidOp
+let fromValidatorDto x =
+    match (x.Type, x.ETag) with
+    | 't', Some etag -> fromEntityTagDto etag |> ETag
+    | 't', None -> "Expected etag to have a value" |> invalidOp
+    | 'd', _ -> x.ExpirationDateUtc.Value |> ExpirationDateUtc
+    | 'b', Some etag -> (fromEntityTagDto etag, x.ExpirationDateUtc.Value) |> Both
+    | 'b', None -> "Expected etag to have a value" |> invalidOp
+    | x, _ -> sprintf "Invalid Validator type: '%c'" x |> invalidOp
 
 type RevalidationSettingsDto = 
     {
@@ -78,20 +81,20 @@ type RevalidationSettingsDto =
 type ExpirySettingsDto =
     {
         Type: char
-        Soft: RevalidationSettingsDto
+        Soft: RevalidationSettingsDto option
         HardUtc: Nullable<DateTime>
     }
 
 let toExpirySettingsDto = function
     | NoExpiryDate ->
         {
-            Soft = null :> obj :?> RevalidationSettingsDto
+            Soft = None
             HardUtc = Nullable<DateTime>()
             Type = 'n'
         }
     | HardUtc x -> 
         {
-            Soft = null :> obj :?> RevalidationSettingsDto
+            Soft = None
             HardUtc = Nullable<DateTime> x
             Type = 'h'
         }
@@ -101,24 +104,25 @@ let toExpirySettingsDto = function
                 {
                     MustRevalidateAtUtc = x.MustRevalidateAtUtc
                     Validator = toValidatorDto x.Validator
-                }
+                } |> Some
             HardUtc = Nullable<DateTime>()
             Type = 's'
         }
 
 let fromExpirySettingsDto (x: ExpirySettingsDto) =
-    match x.Type with
-    | 'n' -> NoExpiryDate
-    | 'h' -> x.HardUtc.Value |> HardUtc
-    | 's' ->
+    match (x.Type, x.Soft) with
+    | 'n', _ -> NoExpiryDate
+    | 'h', _ -> x.HardUtc.Value |> HardUtc
+    | 's', Some s ->
         let settings =
             {
-                MustRevalidateAtUtc = x.Soft.MustRevalidateAtUtc
-                Validator = fromValidarorDto x.Soft.Validator
+                MustRevalidateAtUtc = s.MustRevalidateAtUtc
+                Validator = fromValidatorDto s.Validator
             }: RevalidationSettings
             
         Soft settings
-    | x -> sprintf "Invalid Validator type: '%c'" x |> invalidOp
+    | 's', None -> "Expected soft to have a value" |> invalidOp
+    | x, _ -> sprintf "Invalid Validator type: '%c'" x |> invalidOp
 
 type CacheSettingsDto =
     {
@@ -128,7 +132,7 @@ type CacheSettingsDto =
 
 type CacheValuesDto =
     {
-        ShinyHttpCacheVersion: Version
+        ShinyHttpCacheVersion: System.Collections.Generic.List<int>
         HttpResponse: CachedResponse
         CacheSettings: CacheSettingsDto
     }
@@ -150,7 +154,7 @@ let toDto (x: CachedValues) =
     buildCachedResponse x.HttpResponse
     |> asyncMap (fun resp ->
         {
-            ShinyHttpCacheVersion = version
+            ShinyHttpCacheVersion = SerializableVersion.fromSemanticVersion version
             HttpResponse = resp
             CacheSettings = toCacheSettingsDto x.CacheSettings
         })
