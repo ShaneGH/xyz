@@ -1,19 +1,17 @@
 module ShinyHttpCache.Tests.CacheReadTests
 
-open System.Net.Http
-open System.Threading
-open Foq
 open ShinyHttpCache.Tests.Utils.AssertUtils
 open System
 open NUnit.Framework
 open ShinyHttpCache.Tests.Utils
+open ShinyHttpCache.Tests.Utils.TestState
 
 [<Test>]
 let ``Client request, with previously cached value, returns cached value`` () =
         
     // arrange
     let cached =
-        TestState.CachedData.value (DateTime.UtcNow.AddDays(1.0))
+        TestState.CachedData.value (DateTime.UtcNow.AddDays(1.0) |> CachedData.Expires)
         |> TestState.CachedData.setResponseContent 1
         
     let req =
@@ -23,10 +21,12 @@ let ``Client request, with previously cached value, returns cached value`` () =
     let state =
         TestState.build()
         |> TestState.addToCache cached
+        |> TestState.ignoreId
         |> TestState.addHttpRequest req
+        |> TestState.ignoreId
 
     // act
-    let response =
+    let (mocks, response) =
         state
         |> TestUtils.executeRequest TestUtils.ExecuteRequestArgs.value
 

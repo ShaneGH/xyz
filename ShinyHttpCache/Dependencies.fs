@@ -5,6 +5,7 @@ open System.Net.Http
 open System.Threading
 open ShinyHttpCache.Serialization.HttpResponseValues
 
+// TODO: need CacnellationToken on all of these methods
 type ICache =
     abstract member Get : key: string -> Stream option Async
     //TODO: replace Unit with the unserialized version of the stream

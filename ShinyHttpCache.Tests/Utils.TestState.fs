@@ -1,24 +1,17 @@
 module ShinyHttpCache.Tests.Utils.TestState
+open System.Globalization
+open System.Net.Http.Headers
+open ShinyHttpCache.Tests.Utils.Mock
 open System.Collections.Generic
 open System.IO
 open System.Threading
 open ShinyHttpCache
-open ShinyHttpCache.Dependencies
 open ShinyHttpCache.Model.CacheSettings
 open ShinyHttpCache.Serialization.Dtos.V1
 open System
 open System.Net.Http
-open Foq
-open ShinyHttpCache.FSharp.CachingHttpClient
 open ShinyHttpCache.Serialization.HttpResponseValues
 open ShinyHttpCache.Utils
-open ShinyHttpCache.Utils.ReaderMonad
-
-type State =
-    {
-        dependencies: Mock<ICachingHttpClientDependencies>
-        cache: Mock<ICache>
-    }
 
 module Private =
     let asyncRetn x = async { return x }
@@ -43,29 +36,15 @@ let private getUserKey(msg: CachedRequest) =
         |> flatten
         
 let build () =
-    let cache = Mock<ICache>()
-    let dependencies = Mock<ICachingHttpClientDependencies>()
+    let removeId (_, x) = x
     
-    cache
-        .Setup(fun x -> <@ x.Get(It.IsAny<string>()) @>)
-        .Returns(asyncRetn None) |> ignore
-
-    cache
-        .Setup(fun x -> <@ x.Put (It.IsAny<string>()) (It.IsAny<Unit>()) (It.IsAny<Stream>()) @>)
-        .Returns(asyncRetn ()) |> ignore
-
-    cache
-        .Setup(fun x -> <@ x.Delete(It.IsAny<string>()) @>)
-        .Returns(asyncRetn ())  |> ignore
-
-    cache
-        .Setup(fun x -> <@ x.BuildUserKey(It.IsAny<CachedRequest>()) @>)
-        .Calls<CachedRequest>(fun x -> getUserKey x)  |> ignore
-
-    {
-        dependencies = dependencies
-        cache = cache
-    }
+    Mock.newMock true
+    |> Mock.get (fun _ -> true) (fun _ -> asyncRetn None)
+    |> removeId
+    |> Mock.put (fun _ -> true) (fun _ -> asyncRetn ())
+    |> removeId
+    |> Mock.buildUserKey (fun _ -> true) getUserKey
+    |> removeId
     
 module HttpRequestMock =
     type Args =
@@ -87,7 +66,7 @@ module HttpRequestMock =
     let setResponseCode responseCode x = { x with responseCode = responseCode  }
 open HttpRequestMock
         
-let addHttpRequest args (state: State)=
+let addHttpRequest args (state: ICachingHttpClientDependenciesMethods)=
     let response = new HttpResponseMessage()
     match args.addResponseContent with
     | Some x -> response.Content <- new SingleByteContent.SingleByteContent(x) :> HttpContent
@@ -104,53 +83,61 @@ let addHttpRequest args (state: State)=
 
         response.RequestMessage <- msg;
         asyncRetn response
-
-    let assertUrl =
-        fun (msg: HttpRequestMessage, c) -> msg.RequestUri = Uri(args.url);
-        |> createPredicate
-
-    state.dependencies
-        .Setup(fun x -> <@ x.Send(is(fun (msg: HttpRequestMessage, c: CancellationToken) -> msg.RequestUri = Uri(args.url))) @>)
-        .Calls<(HttpRequestMessage * CancellationToken)>(returnResponse)  |> ignore
-    
-    state
+        
+    Mock.send (fun (req, _) -> req.RequestUri = Uri(args.url)) returnResponse state
 
 module CachedData =
     type Args =
         {
-            cachedUntil: DateTime
             url: string
             user: string option
             addRequestContent: byte option
             addResponseContent: byte option
             method: HttpMethod
-            expiry: ExpirySettings
+            expiry: DateTime option
+            etag: (string * bool) option
+            maxAge: TimeSpan option
             customHeaders: KeyValuePair<string, string[]> list   
         }
         
-    let value (cachedUntil: DateTime) =
+    type CacheUntil =
+        | Expires of DateTime
+        | Etag of (string * bool)
+        | MaxAge of TimeSpan
+        
+    let value (cachedUntil: CacheUntil) =
+        let (expires, etag, maxAge) =
+            match cachedUntil with
+            | Expires x -> (Some x, None, None)
+            | Etag x -> (None, Some x, None)
+            | MaxAge x -> (None, None, Some x)
+        
         {
-            cachedUntil = DateTime(cachedUntil.Ticks, DateTimeKind.Utc)
             url = "http://www.com"
             user = None
             addRequestContent = None
             addResponseContent = None
             method = HttpMethod.Get
-            expiry = DateTime.UtcNow.AddDays(10.0) |> ExpirySettings.HardUtc
+            expiry = expires
+            etag = etag
+            maxAge = maxAge
             customHeaders = []
         }
         
-    let setCachedUntil (cachedUntil: DateTime) x = { x with cachedUntil = DateTime(cachedUntil.Ticks, DateTimeKind.Utc)  }
     let setUrl url (x: Args) = { x with url = url  }
     let setUser user (x: Args) = { x with user = Some user  }
     let setResponseContent (responseContent: int) (x: Args) = { x with addResponseContent = byte responseContent |> Some  }
     let setRequestContent (requestContent: int) (x: Args) = { x with addRequestContent = byte requestContent |> Some  }
     let setMethod method x = { x with method = method  }
     let setExpiry expiry x = { x with expiry = expiry  }
+    let setEtag etag x = { x with etag = Some etag  }
+    let setMaxAge maxAge x = { x with maxAge = Some maxAge  }
     let addCustomHeader customHeader x = { x with customHeaders = customHeader :: x.customHeaders  }
 open CachedData
 
-let addToCache args (state: State) =
+let ignoreId (_, resp) = resp
+    
+let addToCache args (state: ICachingHttpClientDependenciesMethods) =
     
     let response = new HttpResponseMessage()
     response.RequestMessage <- new HttpRequestMessage()
@@ -161,6 +148,18 @@ let addToCache args (state: State) =
     
     match args.addResponseContent with
     | Some x -> response.Content <- new SingleByteContent.SingleByteContent(x)
+    | None -> response.Content <- new SingleByteContent.NoContent()
+    
+    match args.expiry with
+    | Some x -> response.Content.Headers.Expires <- Nullable<DateTimeOffset> (DateTimeOffset(x))
+    | None -> ()
+    
+    match args.etag with
+    | Some (x, y) -> response.Headers.ETag <- EntityTagHeaderValue (x, y)
+    | None -> ()
+    
+    match args.maxAge with
+    | Some x -> response.Headers.CacheControl.MaxAge <- Nullable<TimeSpan> x
     | None -> ()
     
     for x in args.customHeaders do
@@ -192,8 +191,4 @@ let addToCache args (state: State) =
         return Some str
     }
         
-    state.cache
-        .Setup(fun x -> <@ x.Get(key) @>)
-        .Returns(resp)  |> ignore
-        
-    state
+    Mock.get (fun x -> x = key) (fun _ -> resp) state

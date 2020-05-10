@@ -14,3 +14,12 @@ type SingleByteContent (content: byte) =
     override __.TryComputeLength([<Out>] length) =
         length <- 1L
         true
+
+type NoContent () =
+    inherit HttpContent()
+    
+    override __.SerializeToStreamAsync(_, _) = Task.CompletedTask
+    
+    override __.TryComputeLength([<Out>] length) =
+        length <- 0L
+        true
