@@ -50,7 +50,6 @@ module CacheSettings =
             SharedCache: bool
         }
        
-    let private forceRevalidation = DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)
     let private hasImmutable = Regex("immutable", RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
 
     let build (response: HttpResponseMessage) = 
@@ -108,7 +107,7 @@ module CacheSettings =
                 SharedCache = sharedCache
                 ExpirySettings = 
                     {
-                        MustRevalidateAtUtc = forceRevalidation
+                        MustRevalidateAtUtc = DateTime.UtcNow
                         Validator = ETag x
                     } |> Soft 
             } |> Some

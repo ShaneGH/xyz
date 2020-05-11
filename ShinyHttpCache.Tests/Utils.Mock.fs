@@ -5,6 +5,7 @@ open System.IO
 open System.Net.Http
 open System.Threading
 open ShinyHttpCache.Dependencies
+open ShinyHttpCache.Model
 open ShinyHttpCache.Serialization.HttpResponseValues
 
 type MockCase<'a, 'b> =
@@ -17,25 +18,27 @@ type Mock<'a, 'b> =
     {
         strict: bool
         name: string
-        cases: (Guid * MockCase<'a, 'b> * int) list
+        cases: (Guid * MockCase<'a, 'b>) list
+        calls: 'a list
     }
 
 let private addCase m case =
     let id = Guid.NewGuid()
-    let newMock = { m with cases = (id, case, 0) :: m.cases }
+    let newMock = { m with cases = (id, case) :: m.cases }
     (id, newMock)
 
 let private execute x m =
+    let m = { m with calls = x :: m.calls |> List.rev }
     let result =
         m.cases
-        |> Seq.map (fun (id, c, y) -> ((id, c, y), c.verify x))
+        |> Seq.map (fun (id, c) -> ((id, c), c.verify x))
         |> Seq.filter (fun (_, v) -> v)
         |> Seq.map (fun (x, _) -> x)
         |> Seq.tryHead
         
     match result, m.strict with
-    | Some (id, executed, count), _ ->
-        let cases = m.cases |> List.map(fun (i, ex, c) -> if i = id then (id, executed, count + 1) else (id, ex, c))
+    | Some (id, executed), _ ->
+        let cases = m.cases |> List.map(fun (i, ex) -> if i = id then (id, executed) else (id, ex))
         let mock = { m with cases = cases }
         (mock, executed.execute x)
     | None, true -> sprintf "Method %s has not been mocked" m.name |> invalidOp
@@ -44,10 +47,16 @@ let private execute x m =
 type ICachingHttpClientDependenciesMethods =
     {
         get: Mock<string, Stream option Async>
-        put: Mock<(string * Unit * Stream), Unit Async>
+        put: Mock<(string * CacheSettings.CacheSettings * Stream), Unit Async>
         delete: Mock<string, Unit Async>
         buildUserKey: Mock<CachedRequest, string option>
         send: Mock<(HttpRequestMessage * CancellationToken), HttpResponseMessage Async>
+    }
+    
+type MutableMocks = 
+    {
+        mutable CacheMethods: ICachingHttpClientDependenciesMethods
+        lock: obj
     }
 
 [<RequireQualifiedAccess>]
@@ -59,11 +68,11 @@ module Mock =
         
     let newMock strict =
         {
-            get = { strict = strict; cases = []; name = "get" }
-            put = { strict = strict; cases = []; name = "put" }
-            delete = { strict = strict; cases = []; name = "delete" }
-            buildUserKey = { strict = strict; cases = []; name = "buildUserKey" }
-            send = { strict = strict; cases = []; name = "send" }
+            get = { strict = strict; cases = []; name = "get"; calls = [] }
+            put = { strict = strict; cases = []; name = "put"; calls = [] }
+            delete = { strict = strict; cases = []; name = "delete"; calls = [] }
+            buildUserKey = { strict = strict; cases = []; name = "buildUserKey"; calls = [] }
+            send = { strict = strict; cases = []; name = "send"; calls = [] }
         }
         
     let get = mockMethod (fun x -> x.get) (fun x y -> { x with get = y })
@@ -71,12 +80,19 @@ module Mock =
     let delete = mockMethod (fun x -> x.delete) (fun x y -> { x with delete = y })
     let buildUserKey = mockMethod (fun x -> x.buildUserKey) (fun x y -> { x with buildUserKey = y })
     let send = mockMethod (fun x -> x.send) (fun x y -> { x with send = y })
-     
-type MutableMocks = 
-    {
-        mutable CacheMethods: ICachingHttpClientDependenciesMethods
-        lock: obj
-    }
+    
+    let private verify getter f mock =
+        mock.CacheMethods
+        |> getter
+        |> (fun x -> x.calls)
+        |> List.filter f
+        |> List.length
+        
+    let verifyGet = verify (fun x -> x.get)
+    let verifyPut = verify (fun x -> x.put)
+    let verifyDelete = verify (fun x -> x.delete)
+    let verifyBuildUserKey = verify (fun x -> x.buildUserKey)
+    let verifySend = verify (fun x -> x.send)
 
 type private Cache = 
     {

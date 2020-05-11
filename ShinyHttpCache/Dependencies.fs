@@ -3,13 +3,14 @@
 open System.IO
 open System.Net.Http
 open System.Threading
+open ShinyHttpCache.Model
 open ShinyHttpCache.Serialization.HttpResponseValues
 
 // TODO: need CacnellationToken on all of these methods
 type ICache =
     abstract member Get : key: string -> Stream option Async
     //TODO: replace Unit with the unserialized version of the stream
-    abstract member Put : key: string -> cacheData: Unit -> serializedCacheData: Stream -> unit Async
+    abstract member Put : key: string -> cacheSettings: CacheSettings.CacheSettings -> serializedCacheData: Stream -> unit Async
     abstract member Delete : key: string -> unit Async
     abstract member BuildUserKey : CachedRequest -> string option
 

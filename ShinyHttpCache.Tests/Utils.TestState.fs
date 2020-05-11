@@ -17,8 +17,6 @@ module Private =
     let asyncRetn x = async { return x }
 open Private
 
-let createPredicate (f: 'a -> bool) = Predicate<'a>(f)
-
 let UserHeader = "x-test-user"
 
 let private flatten = function
@@ -66,7 +64,7 @@ module HttpRequestMock =
     let setResponseCode responseCode x = { x with responseCode = responseCode  }
 open HttpRequestMock
         
-let addHttpRequest args (state: ICachingHttpClientDependenciesMethods)=
+let mockHttpRequest args (state: ICachingHttpClientDependenciesMethods)=
     let response = new HttpResponseMessage()
     match args.addResponseContent with
     | Some x -> response.Content <- new SingleByteContent.SingleByteContent(x) :> HttpContent
@@ -84,7 +82,8 @@ let addHttpRequest args (state: ICachingHttpClientDependenciesMethods)=
         response.RequestMessage <- msg;
         asyncRetn response
         
-    Mock.send (fun (req, _) -> req.RequestUri = Uri(args.url)) returnResponse state
+    let (x, y) = Mock.send (fun (req, _) -> req.RequestUri = Uri(args.url)) returnResponse state
+    (x, y, response)
 
 module CachedData =
     type Args =
@@ -95,6 +94,7 @@ module CachedData =
             addResponseContent: byte option
             method: HttpMethod
             expiry: DateTime option
+            // value, isWeak
             etag: (string * bool) option
             maxAge: TimeSpan option
             customHeaders: KeyValuePair<string, string[]> list   
@@ -130,9 +130,9 @@ module CachedData =
     let setRequestContent (requestContent: int) (x: Args) = { x with addRequestContent = byte requestContent |> Some  }
     let setMethod method x = { x with method = method  }
     let setExpiry expiry x = { x with expiry = expiry  }
-    let setEtag etag x = { x with etag = Some etag  }
+    let setEtag etag isWeak  x = { x with etag = Some (etag, isWeak)  }
     let setMaxAge maxAge x = { x with maxAge = Some maxAge  }
-    let addCustomHeader customHeader x = { x with customHeaders = customHeader :: x.customHeaders  }
+    let addCustomHeader key value x = { x with customHeaders = KeyValuePair.Create(key, [|value|]) :: x.customHeaders  }
 open CachedData
 
 let ignoreId (_, resp) = resp

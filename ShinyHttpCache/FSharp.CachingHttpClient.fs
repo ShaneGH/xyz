@@ -112,6 +112,8 @@ module private Private =
             }
 
         Reader.Reader execute
+        
+    
 
     type HttpResponseType =
         | FromCache of CachedValues
@@ -198,14 +200,14 @@ module private Private =
 
         let execute (cache: CachingHttpClientDependencies) =
 
-            let buildCacheKey isPrivate =
-                match isPrivate with
-                | true ->
+            let buildCacheKey isPublic =
+                match isPublic with
+                | false ->
                     buildUserKey cache
                     >> Option.map (buildUserCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri)
                     |> asyncMap
                     <| req
-                | false ->
+                | true ->
                     buildSharedCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri
                     |> Some
                     |> asyncRetn
@@ -222,7 +224,7 @@ module private Private =
                             Serializer.serialize model
                             |> asyncMap (fun (_, strm) -> strm)
 
-                        return! put cache k () (Disposables.getValue strm)
+                        return! put cache k model.CacheSettings (Disposables.getValue strm)
                     }
 
                     shouldCache model
@@ -266,8 +268,10 @@ module private Private =
 
     let rec cacheValue = function
         | Hybrid x -> combineCacheResult x |> ReaderAsync.bind cacheValue
-        | FromCache x -> x.HttpResponse |> ReaderAsyncOption.retn
-        | FromServer x -> tryCacheValue x
+        | FromCache x -> x.HttpResponse |> ReaderAsync.retn
+        | FromServer x ->
+            tryCacheValue x
+            |> ReaderAsync.map (Option.defaultValue x)
 
 open Private
 
