@@ -113,14 +113,14 @@ module private Private =
 
         Reader.Reader execute
         
-    
+    type HeadersAreValidated = | Yes | No
 
     type HttpResponseType =
         | FromCache of CachedValues
         | FromServer of HttpResponseMessage
         // TODO: reduce the scope of the first arg to just the response
         // last arg is "StrongValidation"
-        | Hybrid of (CachedValues * HttpResponseMessage * bool)
+        | Hybrid of (CachedValues * HttpResponseMessage * HeadersAreValidated)
 
     let toEntityTagHeader = function
         | Strong x -> EntityTagHeaderValue(x, false)
@@ -139,13 +139,13 @@ module private Private =
 
     type CacheBehavior =
         | Req of HttpRequestMessage
-        | ReqWithValidation of (HttpRequestMessage * CachedValues * bool)
+        | ReqWithValidation of (HttpRequestMessage * CachedValues * HeadersAreValidated)
         | Resp of CachedValues
 
-    let isStrongValidation = function
+    let getValidationReason = function
         | Both (x, _)
-        | ETag x -> match x with | Strong _ -> true | _ -> false
-        | ExpirationDateUtc _ -> false
+        | ETag x -> match x with | Strong _ -> HeadersAreValidated.Yes | _ -> HeadersAreValidated.No
+        | ExpirationDateUtc _ -> HeadersAreValidated.No
 
     let sendHttpRequest (request, token) (cacheResult: CachedValues) =
         let cacheBehavior =
@@ -156,7 +156,7 @@ module private Private =
             | HardUtc _ -> Req request
             | Soft s ->
                 addValidationHeaders request s.Validator
-                ReqWithValidation (request, cacheResult, isStrongValidation s.Validator)
+                ReqWithValidation (request, cacheResult, getValidationReason s.Validator)
 
         let execute (cache: CachingHttpClientDependencies) =
             match cacheBehavior with
@@ -250,20 +250,18 @@ module private Private =
         | x when isNull x -> None
         | x -> Some x
 
-    let combine (cacheResponse: CachedValues) (serviceResponse: HttpResponseMessage) isStrongValidation =
-        match isStrongValidation with
-        | true -> cacheResponse.HttpResponse
-        | false ->
-            // TODO: if serviceResponse has no validation headers,
-            // should we append the headers from the previous req?
-            serviceResponse.Content <- cacheResponse.HttpResponse.Content
-            serviceResponse
-
     let combineCacheResult (cacheResponse, serviceResponse: HttpResponseMessage, isStrongValidation) =
+        
         match serviceResponse.StatusCode with
-        | HttpStatusCode.NotModified -> combine cacheResponse serviceResponse isStrongValidation
-        | _ -> serviceResponse 
-        |> FromServer
+        | HttpStatusCode.NotModified ->
+            match isStrongValidation with
+            | HeadersAreValidated.Yes -> FromCache cacheResponse
+            | HeadersAreValidated.No -> 
+                // TODO: if serviceResponse has no validation headers,
+                // should we append the headers from the previous req?
+                serviceResponse.Content <- cacheResponse.HttpResponse.Content
+                FromServer serviceResponse
+        | _ -> serviceResponse |> FromServer
         |> ReaderAsync.retn
 
     let rec cacheValue = function
