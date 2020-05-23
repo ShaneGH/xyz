@@ -1,12 +1,10 @@
 module ShinyHttpCache.Tests.Utils.TestState
-open System.Globalization
 open System.Net.Http.Headers
 open ShinyHttpCache.Tests.Utils.Mock
 open System.Collections.Generic
 open System.IO
 open System.Threading
 open ShinyHttpCache
-open ShinyHttpCache.Model.CacheSettings
 open ShinyHttpCache.Serialization.Dtos.V1
 open System
 open System.Net.Http

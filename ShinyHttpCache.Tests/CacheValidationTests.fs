@@ -45,9 +45,9 @@ let ``Client request, With strong eTag, caches correctly`` () =
                 match settings.CacheSettings.ExpirySettings with
                 | Some x ->
                     match x.Validator with
-                    | CacheSettings.ETag e ->
+                    | ETag e ->
                         match e with
-                        | CacheSettings.Strong t -> t = "\"etg\""
+                        | Strong t -> t = "\"etg\""
                         | _ -> false
                     | _ -> false
                 | _ -> false
@@ -94,9 +94,9 @@ let ``Client request, With weak eTag, caches correctly`` () =
                 match settings.CacheSettings.ExpirySettings with
                 | Some x ->
                     match x.Validator with
-                    | CacheSettings.ETag e ->
+                    | ETag e ->
                         match e with
-                        | CacheSettings.Weak t -> t = "\"etg\""
+                        | Weak t -> t = "\"etg\""
                         | _ -> false
                     | _ -> false
                 | _ -> false
@@ -137,7 +137,7 @@ let ``Client request, With expires, caches correctly`` () =
                 match settings.CacheSettings.ExpirySettings with
                 | Some x ->
                     match x.Validator with
-                    | CacheSettings.ExpirationDateUtc e ->
+                    | ExpirationDateUtc e ->
                         assertDateAlmost x.MustRevalidateAtUtc e
                         assertDateAlmost response.Content.Headers.Expires.Value.UtcDateTime e
                         true
@@ -188,9 +188,9 @@ let ``Client request, With expires in the past and eTag, caches correctly`` () =
                 match settings.CacheSettings.ExpirySettings with
                 | Some x ->
                     match x.Validator with
-                    | CacheSettings.Both (e, dt) ->
+                    | Both (e, dt) ->
                         match e with
-                        | CacheSettings.Strong t ->
+                        | Strong t ->
                             assertDateAlmost response.Content.Headers.Expires.Value.UtcDateTime dt
                             t = "\"etg\""
                         | _ -> false
@@ -316,10 +316,10 @@ let ``Client request, With weak eTag, Server returns another eTag, Caches correc
             match settings.CacheSettings.ExpirySettings with
             | Some x ->
                 match x.Validator with
-                | CacheSettings.ETag t
-                | CacheSettings.Both (t, _) ->
+                | ETag t
+                | Both (t, _) ->
                     match t with
-                    | CacheSettings.Weak w -> Assert.AreEqual(@"""new etag""", w)
+                    | Weak w -> Assert.AreEqual(@"""new etag""", w)
                     | _ -> Assert.Fail();
                 | _ -> Assert.Fail();
             | _ -> Assert.Fail();

@@ -2,7 +2,6 @@ module ShinyHttpCache.Tests.CacheWriteTests
 
 open System.Net.Http.Headers
 open ShinyHttpCache.Model
-open ShinyHttpCache.Model.CacheSettings
 open ShinyHttpCache.Tests.Utils.AssertUtils
 open System
 open NUnit.Framework

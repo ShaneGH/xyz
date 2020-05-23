@@ -1,7 +1,6 @@
 ﻿module ShinyHttpCache.Serialization.Dtos.V1
 open System
 open ShinyHttpCache.Model
-open ShinyHttpCache.Model.CacheSettings
 open ShinyHttpCache.Serialization.HttpResponseValues
 open ShinyHttpCache.Utils
 
@@ -78,7 +77,7 @@ type ReValidationSettingsDto =
         Validator: ValidatorDto
     }
 
-let toReValidationSettingsDto (x: CacheSettings.RevalidationSettings) =
+let toReValidationSettingsDto (x: RevalidationSettings) =
     {
         MustRevalidateAtUtc = x.MustRevalidateAtUtc
         Validator = toValidatorDto x.Validator
@@ -88,7 +87,7 @@ let fromReValidationSettingsDto (x: ReValidationSettingsDto) =
     {
         MustRevalidateAtUtc = x.MustRevalidateAtUtc
         Validator = fromValidatorDto x.Validator
-    } : CacheSettings.RevalidationSettings
+    } : RevalidationSettings
 
 type CacheSettingsDto =
     {

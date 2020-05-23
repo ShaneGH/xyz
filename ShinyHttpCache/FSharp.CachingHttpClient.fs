@@ -9,11 +9,8 @@ open ShinyHttpCache.Dependencies
 open ShinyHttpCache.Serialization.HttpResponseValues
 open ShinyHttpCache.Utils.ReaderMonad
 open ShinyHttpCache.Model
-open ShinyHttpCache.Model.CacheSettings
 open System.Net
-open System.IO
 open ShinyHttpCache.Serialization;
-open ShinyHttpCache.Model
 open ShinyHttpCache.Utils
 
 // what codes are cachable
