@@ -39,3 +39,5 @@ let executeRequest args (state: ICachingHttpClientDependenciesMethods) =
     (recorder, Reader.run dependencies reader)
     
 let asTask x = Async.StartAsTask x |> (fun x -> x :> Task)
+
+let asNullable x = Nullable<'a>(x)

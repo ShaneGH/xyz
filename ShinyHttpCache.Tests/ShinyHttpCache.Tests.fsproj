@@ -21,6 +21,7 @@
     <Compile Include="Utils.AssertUtils.fs" />
     <Compile Include="CacheReadTests.fs" />
     <Compile Include="CacheValidationTests.fs" />
+    <Compile Include="CacheWriteTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -249,6 +249,10 @@ module private Private =
     let toOption = function
         | x when isNull x -> None
         | x -> Some x
+        
+    let copyCacheHeaders (from: HttpContentHeaders) (``to``: HttpContentHeaders) =
+        ``to``.Expires <- from.Expires
+        ``to``.LastModified <- from.LastModified
 
     let combineCacheResult (cacheResponse, serviceResponse: HttpResponseMessage, isStrongValidation) =
         
@@ -256,9 +260,10 @@ module private Private =
         | HttpStatusCode.NotModified ->
             match isStrongValidation with
             | HeadersAreValidated.Yes -> FromCache cacheResponse
-            | HeadersAreValidated.No -> 
-                // TODO: if serviceResponse has no validation headers,
-                // should we append the headers from the previous req?
+            | HeadersAreValidated.No ->
+                // TODO: need to really think about the consequences of this (partial headers)
+                copyCacheHeaders serviceResponse.Content.Headers cacheResponse.HttpResponse.Content.Headers
+                
                 serviceResponse.Content <- cacheResponse.HttpResponse.Content
                 FromServer serviceResponse
         | _ -> serviceResponse |> FromServer
