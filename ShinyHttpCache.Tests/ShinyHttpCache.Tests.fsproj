@@ -24,6 +24,7 @@
     <Compile Include="CacheValidationTests.fs" />
     <Compile Include="CacheWriteTests.fs" />
     <Compile Include="UserCacheTests.fs" />
+    <Compile Include="CustomSerializerTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

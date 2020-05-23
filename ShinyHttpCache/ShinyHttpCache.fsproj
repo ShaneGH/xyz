@@ -11,6 +11,7 @@
     <Compile Include="Utils.Infra.fs" />
     <Compile Include="Utils.Disposables.fs" />
     <Compile Include="Utils.ReaderMonad.fs" />
+    <Compile Include="Utils.SerializationConverters.fs" />
     <Compile Include="Utils.CompressedSerialization.fs" />
     <Compile Include="Utils.SerializableVersion.fs" />
     <!-- Models -->
