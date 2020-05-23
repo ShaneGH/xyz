@@ -98,7 +98,7 @@ let ``Client request, With max-age, adds to cache`` () =
             | Some x ->
                 assertDateAlmost (DateTime.UtcNow.AddDays(1.0)) x.MustRevalidateAtUtc
                 match x.Validator with
-                | Validator.ExpirationDateUtc d ->
+                | CacheSettings.ExpirationDateUtc d ->
                     Assert.AreEqual (x.MustRevalidateAtUtc, d)
                 | _ -> Assert.Fail()
             | _ -> Assert.Fail()
@@ -137,7 +137,7 @@ let ``Client request, With expires, adds to cache`` () =
             | Some x ->
                 assertDateAlmost expectedResponse.Content.Headers.Expires.Value.UtcDateTime x.MustRevalidateAtUtc
                 match x.Validator with
-                | Validator.ExpirationDateUtc d ->
+                | CacheSettings.ExpirationDateUtc d ->
                     Assert.AreEqual (x.MustRevalidateAtUtc, d)
                 | _ -> Assert.Fail()
             | _ -> Assert.Fail()
@@ -193,6 +193,33 @@ let ``Client request, With no headers or cache, checks cache first`` () =
         let! _ = response
         
         Mock.Mock.verifyGet (fun _ -> true) mocks
+        |> assertEqual 1
+        
+        return ()
+    } |> TestUtils.asTask
+
+[<Test>]
+let ``Client request, With immutable, caches with no expiry settings`` () =
+        
+    // arrange
+    let (_, state, expectedResponse) =
+        TestState.build()
+        |> TestState.mockHttpRequest TestState.HttpRequestMock.value
+        
+    expectedResponse.Headers.CacheControl <- CacheControlHeaderValue.Parse("immutable")
+
+    // act
+    let (mocks, response) =
+        state
+        |> TestUtils.executeRequest TestUtils.ExecuteRequestArgs.value
+
+    // assert
+    async {
+        let! _ = response
+        
+        Mock.Mock.verifyPut (fun (_, _, x) ->
+            assertNone x.CacheSettings.ExpirySettings
+            true) mocks
         |> assertEqual 1
         
         return ()

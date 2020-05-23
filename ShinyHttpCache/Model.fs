@@ -17,126 +17,130 @@ open System.Text.RegularExpressions
 //  W/"asdasdasd"
 // Last-Modified
 
-type EntityTag =
-    | Strong of string
-    | Weak of string
+[<RequireQualifiedAccess>]
+module CacheSettings =
 
-let private buildETag (etag: EntityTagHeaderValue) = 
-    match etag.IsWeak with
-    | true -> Weak etag.Tag
-    | false -> Strong etag.Tag
+    type EntityTag =
+        | Strong of string
+        | Weak of string
 
-type Validator =
-    | ETag of EntityTag
-    | ExpirationDateUtc of DateTime
-    | Both of (EntityTag * DateTime)
+    let private buildETag (etag: EntityTagHeaderValue) = 
+        match etag.IsWeak with
+        | true -> Weak etag.Tag
+        | false -> Strong etag.Tag
 
-type RevalidationSettings = 
-    {
-        MustRevalidateAtUtc: DateTime
-        Validator: Validator
-    }
+    type Validator =
+        | ETag of EntityTag
+        | ExpirationDateUtc of DateTime
+        | Both of (EntityTag * DateTime)
 
-type CacheSettings =
-    {
-        ExpirySettings: RevalidationSettings option
-        SharedCache: bool
-    }
-   
-let private hasImmutable = Regex("immutable", RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
-
-let private buildCacheSettings (response: HttpResponseMessage) = 
-
-    let sharedCache =
-        match response.Headers.CacheControl with
-        | null -> true
-        | x -> not x.Private
-
-    let immutable =
-        match response.Headers.CacheControl with
-        | null -> false
-        | x when hasImmutable.IsMatch (x.ToString()) -> true
-        | _ -> false
-
-    let noStore =
-        match response.Headers.CacheControl with
-        | null -> false
-        | x when x.NoStore -> true
-        | _ -> false
-            
-    let etag =
-        match response.Headers.ETag with
-        | null -> None
-        | x -> buildETag x |> Some
-
-    let maxAge =
-        match sharedCache, response.Headers.CacheControl with
-        | _, null -> None
-        | false, x when not x.MaxAge.HasValue -> None
-        | false, x -> Some x.MaxAge.Value
-        | true, x when not x.SharedMaxAge.HasValue -> 
-            match x.MaxAge.HasValue with
-            | true -> Some x.MaxAge.Value
-            | false -> None
-        | true, x -> Some x.SharedMaxAge.Value
-
-    let expires =
-        match response.Content with
-        | null -> None
-        | x when not x.Headers.Expires.HasValue -> None
-        | x -> Some x.Headers.Expires.Value
-
-    let expires =
-        match maxAge, expires with
-        | None, None -> None
-        | Some x, _ -> DateTime.UtcNow + x |> Some
-        | None, Some x -> x.UtcDateTime |> Some
-
-    match noStore, immutable, etag, expires with
-    | true, _, _, _
-    | false, false, None, None -> None
-    | false, false, Some x, None -> 
+    type ReValidationSettings = 
         {
-            SharedCache = sharedCache
-            ExpirySettings = 
-                {
-                    MustRevalidateAtUtc = DateTime.UtcNow
-                    Validator = ETag x
-                } |> Some 
-        } |> Some
-    | false, false, None, Some x-> 
+            MustRevalidateAtUtc: DateTime
+            Validator: Validator
+        }
+    
+    type Value =
         {
-            SharedCache = sharedCache
-            ExpirySettings = 
-                {
-                    MustRevalidateAtUtc = x
-                    Validator = ExpirationDateUtc x
-                } |> Some
-        } |> Some
-    | false, false, Some x, Some y-> 
-        {
-            SharedCache = sharedCache
-            ExpirySettings = 
-                {
-                    MustRevalidateAtUtc = y
-                    Validator = Both (x, y)
-                } |> Some
-        } |> Some
-    // TODO: move this to higher priority when https://tools.ietf.org/html/rfc8246 becomes "Proposed Standard"
-    | false, true, _, _ ->
-        {
-            SharedCache = sharedCache
-            ExpirySettings = None
-        } |> Some
+            // if None, this does not expire
+            ExpirySettings: ReValidationSettings option
+            SharedCache: bool
+        }
+       
+    let private hasImmutable = Regex("immutable", RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
+
+    let buildCacheSettings (response: HttpResponseMessage) = 
+
+        let sharedCache =
+            match response.Headers.CacheControl with
+            | null -> true
+            | x -> not x.Private
+
+        let immutable =
+            match response.Headers.CacheControl with
+            | null -> false
+            | x when hasImmutable.IsMatch (x.ToString()) -> true
+            | _ -> false
+
+        let noStore =
+            match response.Headers.CacheControl with
+            | null -> false
+            | x when x.NoStore -> true
+            | _ -> false
+                
+        let etag =
+            match response.Headers.ETag with
+            | null -> None
+            | x -> buildETag x |> Some
+
+        let maxAge =
+            match sharedCache, response.Headers.CacheControl with
+            | _, null -> None
+            | false, x when not x.MaxAge.HasValue -> None
+            | false, x -> Some x.MaxAge.Value
+            | true, x when not x.SharedMaxAge.HasValue -> 
+                match x.MaxAge.HasValue with
+                | true -> Some x.MaxAge.Value
+                | false -> None
+            | true, x -> Some x.SharedMaxAge.Value
+
+        let expires =
+            match response.Content with
+            | null -> None
+            | x when not x.Headers.Expires.HasValue -> None
+            | x -> Some x.Headers.Expires.Value
+
+        let expires =
+            match maxAge, expires with
+            | None, None -> None
+            | Some x, _ -> DateTime.UtcNow + x |> Some
+            | None, Some x -> x.UtcDateTime |> Some
+
+        match noStore, immutable, etag, expires with
+        | true, _, _, _
+        | false, false, None, None -> None
+        | false, false, Some x, None -> 
+            {
+                SharedCache = sharedCache
+                ExpirySettings = 
+                    {
+                        MustRevalidateAtUtc = DateTime.UtcNow
+                        Validator = ETag x
+                    } |> Some 
+            } |> Some
+        | false, false, None, Some x-> 
+            {
+                SharedCache = sharedCache
+                ExpirySettings = 
+                    {
+                        MustRevalidateAtUtc = x
+                        Validator = ExpirationDateUtc x
+                    } |> Some
+            } |> Some
+        | false, false, Some x, Some y-> 
+            {
+                SharedCache = sharedCache
+                ExpirySettings = 
+                    {
+                        MustRevalidateAtUtc = y
+                        Validator = Both (x, y)
+                    } |> Some
+            } |> Some
+        // TODO: move this to higher priority when https://tools.ietf.org/html/rfc8246 becomes "Proposed Standard"
+        | false, true, _, _ ->
+            {
+                SharedCache = sharedCache
+                ExpirySettings = None
+            } |> Some
 
 type CachedValues =
     {
         HttpResponse: HttpResponseMessage
-        CacheSettings: CacheSettings
+        CacheSettings: CacheSettings.Value
     }
 
 let build response =
-    buildCacheSettings response
+    CacheSettings.buildCacheSettings response
     |> Option.map (fun x ->
         {
             HttpResponse = response

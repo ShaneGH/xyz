@@ -31,3 +31,13 @@ let assertDateAlmost (expected: DateTime) (actual: DateTime) =
         | x -> x
 
     Assert.Less(time, TimeSpan.FromSeconds(5.0));
+
+let assertSome = function
+    | None ->
+        Assert.Fail "Expected Some"
+        Unchecked.defaultof<'a>
+    | Some x -> x
+
+let assertNone = function
+    | None -> ()
+    | Some x -> sprintf "Expected None, was %A" x |> Assert.Fail

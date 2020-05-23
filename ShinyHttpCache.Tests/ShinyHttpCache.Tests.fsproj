@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="Utils.SingleByteContent.fs" />
+    <Compile Include="Utils.CustomContent.fs" />
     <Compile Include="Utils.Mock.fs" />
     <Compile Include="Utils.TestState.fs" />
     <Compile Include="Utils.TestUtils.fs" />

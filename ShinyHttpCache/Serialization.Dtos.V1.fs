@@ -12,12 +12,12 @@ type EntityTagDto =
     }    
 
 let toEntityTagDto = function
-    | Strong x ->
+    | CacheSettings.Strong x ->
         {
             Value = x
             Type = 's'
         }
-    | Weak x ->
+    | CacheSettings.Weak x ->
         {
             Value = x
             Type = 'w'
@@ -25,8 +25,8 @@ let toEntityTagDto = function
 
 let fromEntityTagDto x =
     match x.Type with
-    | 's' -> Strong x.Value 
-    | 'w' -> Weak x.Value
+    | 's' -> CacheSettings.Strong x.Value 
+    | 'w' -> CacheSettings.Weak x.Value
     | x -> sprintf "Invalid EntityTag type: '%c'" x |> invalidOp
 
 type ValidatorDto =
@@ -37,19 +37,19 @@ type ValidatorDto =
     }
 
 let toValidatorDto = function
-    | ETag x ->
+    | CacheSettings.ETag x ->
         {
             Type = 't'
             ETag = toEntityTagDto x |> Some
             ExpirationDateUtc = Nullable<DateTime>()
         }
-    | ExpirationDateUtc x ->
+    | CacheSettings.ExpirationDateUtc x ->
         {
             Type = 'd'
             ETag = None
             ExpirationDateUtc = Nullable<DateTime> x
         }
-    | Both (x, y) ->
+    | CacheSettings.Both (x, y) ->
         {
             Type = 'b'
             ETag = toEntityTagDto x |> Some
@@ -58,10 +58,10 @@ let toValidatorDto = function
 
 let fromValidatorDto x =
     match (x.Type, x.ETag) with
-    | 't', Some etag -> fromEntityTagDto etag |> ETag
+    | 't', Some etag -> fromEntityTagDto etag |> CacheSettings.ETag
     | 't', None -> "Expected etag to have a value" |> invalidOp
-    | 'd', _ -> x.ExpirationDateUtc.Value |> ExpirationDateUtc
-    | 'b', Some etag -> (fromEntityTagDto etag, x.ExpirationDateUtc.Value) |> Both
+    | 'd', _ -> x.ExpirationDateUtc.Value |> CacheSettings.ExpirationDateUtc
+    | 'b', Some etag -> (fromEntityTagDto etag, x.ExpirationDateUtc.Value) |> CacheSettings.Both
     | 'b', None -> "Expected etag to have a value" |> invalidOp
     | x, _ -> sprintf "Invalid Validator type: '%c'" x |> invalidOp
 
@@ -71,7 +71,7 @@ type ReValidationSettingsDto =
         Validator: ValidatorDto
     }
 
-let toReValidationSettingsDto (x: RevalidationSettings) =
+let toReValidationSettingsDto (x: CacheSettings.ReValidationSettings) =
     {
         MustRevalidateAtUtc = x.MustRevalidateAtUtc
         Validator = toValidatorDto x.Validator
@@ -81,7 +81,7 @@ let fromReValidationSettingsDto (x: ReValidationSettingsDto) =
     {
         MustRevalidateAtUtc = x.MustRevalidateAtUtc
         Validator = fromValidatorDto x.Validator
-    } : RevalidationSettings
+    } : CacheSettings.ReValidationSettings
 
 type CacheSettingsDto =
     {
@@ -96,7 +96,7 @@ type CacheValuesDto =
         CacheSettings: CacheSettingsDto
     }
 
-let toCacheSettingsDto (x: CacheSettings) = 
+let toCacheSettingsDto (x: CacheSettings.Value) = 
     {
         SharedCache = x.SharedCache
         ExpirySettings = Option.map toReValidationSettingsDto x.ExpirySettings
@@ -106,7 +106,7 @@ let fromCacheSettingsDto (x: CacheSettingsDto) =
     {
         SharedCache = x.SharedCache
         ExpirySettings = Option.map fromReValidationSettingsDto x.ExpirySettings
-    } : CacheSettings
+    } : CacheSettings.Value
 
 let private version = (typedefof<CacheValuesDto>).Assembly.GetName().Version
 let toDto (x: CachedValues) =

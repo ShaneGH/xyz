@@ -90,19 +90,19 @@ module private Private =
         | Hybrid of (CachedValues * HttpResponseMessage * HeadersAreValidated)
 
     let toEntityTagHeader = function
-        | Strong x -> EntityTagHeaderValue(x, false)
-        | Weak x -> EntityTagHeaderValue(x, true)
+        | CacheSettings.Strong x -> EntityTagHeaderValue(x, false)
+        | CacheSettings.Weak x -> EntityTagHeaderValue(x, true)
 
     let rec addValidationHeaders (request: HttpRequestMessage) = function
-        | ETag x -> 
+        | CacheSettings.ETag x -> 
             toEntityTagHeader x
             |> request.Headers.IfNoneMatch.Add
-        | ExpirationDateUtc x ->
+        | CacheSettings.ExpirationDateUtc x ->
             let expired = DateTimeOffset x |> Nullable<DateTimeOffset>
             request.Headers.IfModifiedSince <- expired
-        | Both (x, y) -> 
-            ETag x |> addValidationHeaders request
-            ExpirationDateUtc y |> addValidationHeaders request
+        | CacheSettings.Both (x, y) -> 
+            CacheSettings.ETag x |> addValidationHeaders request
+            CacheSettings.ExpirationDateUtc y |> addValidationHeaders request
 
     type CacheBehavior =
         | Req of HttpRequestMessage
@@ -110,9 +110,9 @@ module private Private =
         | Resp of CachedValues
 
     let getValidationReason = function
-        | Both (x, _)
-        | ETag x -> match x with | Strong _ -> HeadersAreValidated.Yes | _ -> HeadersAreValidated.No
-        | ExpirationDateUtc _ -> HeadersAreValidated.No
+        | CacheSettings.Both (x, _)
+        | CacheSettings.ETag x -> match x with | CacheSettings.Strong _ -> HeadersAreValidated.Yes | _ -> HeadersAreValidated.No
+        | CacheSettings.ExpirationDateUtc _ -> HeadersAreValidated.No
 
     let sendHttpRequest (request, token) (cacheResult: CachedValues) =
         let cacheBehavior =

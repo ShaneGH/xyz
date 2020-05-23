@@ -9,7 +9,7 @@ open ShinyHttpCache.Serialization.HttpResponseValues
 // TODO: add add a C# version
 type CacheMetadata =
     {
-        CacheSettings: CacheSettings
+        CacheSettings: CacheSettings.Value
         GetRawContent: Unit -> byte array Async
     }
 

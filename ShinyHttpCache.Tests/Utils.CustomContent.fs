@@ -1,4 +1,4 @@
-module ShinyHttpCache.Tests.Utils.SingleByteContent
+module ShinyHttpCache.Tests.Utils.CustomContent
 
 open System.Net.Http
 open System.Runtime.InteropServices

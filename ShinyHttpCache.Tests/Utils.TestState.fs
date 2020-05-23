@@ -65,8 +65,8 @@ open HttpRequestMock
 let mockHttpRequest args (state: ICachingHttpClientDependenciesMethods)=
     let response = new HttpResponseMessage()
     match args.addResponseContent with
-    | Some x -> response.Content <- new SingleByteContent.SingleByteContent(x) :> HttpContent
-    | None -> response.Content <- new SingleByteContent.NoContent() :> HttpContent
+    | Some x -> response.Content <- new CustomContent.SingleByteContent(x) :> HttpContent
+    | None -> response.Content <- new CustomContent.NoContent() :> HttpContent
 
     let lck = obj()
     let mutable first = true;
@@ -141,12 +141,12 @@ let addToCache args (state: ICachingHttpClientDependenciesMethods) =
     response.RequestMessage <- new HttpRequestMessage()
     
     match args.addRequestContent with
-    | Some x -> response.RequestMessage.Content <- new SingleByteContent.SingleByteContent(x)
+    | Some x -> response.RequestMessage.Content <- new CustomContent.SingleByteContent(x)
     | None -> ()
     
     match args.addResponseContent with
-    | Some x -> response.Content <- new SingleByteContent.SingleByteContent(x)
-    | None -> response.Content <- new SingleByteContent.NoContent()
+    | Some x -> response.Content <- new CustomContent.SingleByteContent(x)
+    | None -> response.Content <- new CustomContent.NoContent()
     
     match args.expiry with
     | Some x -> response.Content.Headers.Expires <- Nullable<DateTimeOffset> (DateTimeOffset(x))
