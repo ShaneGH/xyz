@@ -176,21 +176,10 @@ module private Private =
                     buildSharedCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri
                     |> Infra.Async.retn
 
-            let shouldCache (model: CachedValues) =
-                match model.CacheSettings.ExpirySettings with
-                | _ -> Some ()
-                // TODO: this function used to be:
-                // Either
-                // 1. remove it
-                // 2. add more checks (e.g. where are the checks for no-cache, no-store etc?)
-//                match model.CacheSettings.ExpirySettings with
-//                | HardUtc x when x > DateTime.UtcNow -> None
-//                | _ -> Some () 
-
             let addToCache (model: CachedValues) =
                 
                 let cache key =
-                    let cachePut (k, ()) = async {
+                    let cachePut k = async {
                         use! strm = 
                             Serializer.serialize model
                             |> Infra.Async.map (fun (_, strm) -> strm)
@@ -204,8 +193,7 @@ module private Private =
                         return! put cache k (Disposables.getValue strm) metadata
                     }
 
-                    shouldCache model
-                    |> combineOptions key
+                    key
                     |> Option.map cachePut
                     |> Option.defaultValue Infra.Async.unit
 
