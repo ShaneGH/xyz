@@ -68,7 +68,7 @@ let mockHttpRequest args (state: ICachingHttpClientDependenciesMethods)=
     let response = new HttpResponseMessage()
     match args.addResponseContent with
     | Some x -> response.Content <- new SingleByteContent.SingleByteContent(x) :> HttpContent
-    | None -> ()
+    | None -> response.Content <- new SingleByteContent.NoContent() :> HttpContent
 
     let lck = obj()
     let mutable first = true;

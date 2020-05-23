@@ -38,7 +38,7 @@ let ``Client request, With no headers or cache, avoids cache`` () =
     } |> TestUtils.asTask
 
 [<Test>]
-let ``Client request, With max-age, adds to cache`` () =
+let ``Client request, With max-age, adds to cache, verify content only`` () =
         
     // arrange
     let req =
@@ -61,11 +61,39 @@ let ``Client request, With max-age, adds to cache`` () =
     async {
         let! _ = response
         
-        do! (Mock.Mock.verifyPutAsync (fun (key, _, values) -> async {
-            Assert.AreEqual("G$:$:http://www.com/", key)
+        do! (Mock.Mock.verifyPutAsync (fun (_, _, values) -> async {
             let! content = values.GetRawContent()
-            
             CollectionAssert.AreEqual([|33|], content)
+            return true
+        }) mocks
+        |> asyncMap (assertEqual 1))
+        
+        return ()
+    } |> TestUtils.asTask
+
+[<Test>]
+let ``Client request, With max-age, adds to cache`` () =
+        
+    // arrange
+    let (_, state, expectedResponse) =
+        TestState.build()
+        |> TestState.mockHttpRequest TestState.HttpRequestMock.value
+        
+    expectedResponse.Headers.CacheControl <- CacheControlHeaderValue()
+    expectedResponse.Headers.CacheControl.MaxAge <- TimeSpan.FromDays(1.0) |> asNullable
+
+    // act
+    let (mocks, response) =
+        state
+        |> TestUtils.executeRequest TestUtils.ExecuteRequestArgs.value
+
+    // assert
+    async {
+        let! _ = response
+        
+        Mock.Mock.verifyPut (fun (key, _, values) ->
+            Assert.AreEqual("G$:$:http://www.com/", key)
+            
             match values.CacheSettings.ExpirySettings with
             | Some x ->
                 assertDateAlmost (DateTime.UtcNow.AddDays(1.0)) x.MustRevalidateAtUtc
@@ -75,106 +103,97 @@ let ``Client request, With max-age, adds to cache`` () =
                 | _ -> Assert.Fail()
             | _ -> Assert.Fail()
             
-            return true
-        }
+            true
         ) mocks
-        |> asyncMap (assertEqual 1))
+        |> assertEqual 1
         
         return ()
     } |> TestUtils.asTask
-//
-//        [Test]
-//        public async Task ClientRequest_WithMaxAge_AddsToCache()
-//        {
-//            // arrange
-//            var state = new TestState();
-//            var expectedResponse = state.AddHttpRequest(1);
-//            expectedResponse.Headers.CacheControl = new CacheControlHeaderValue
-//            {
-//                MaxAge = TimeSpan.FromDays(1)
-//            };
-//
-//            // act
-//            var response = await state.ExecuteRequest();
-//
-//            // assert
-//            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
-//            state.Dependencies
-//                .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
-//
-//            bool AssertResult(Tuple<string, CachedValues> input)
-//            {
-//                Assert.AreEqual("G$:$:http://www.com/", input.Item1);
-//                CustomAssert.AssertCachedResponse(1, input.Item2.HttpResponse);
-//                CustomAssert.AssertDateAlmost(
-//                    DateTime.UtcNow.AddDays(1), 
-//                    ((Headers.CacheSettings.ExpirySettings.HardUtc)input.Item2.CacheSettings.ExpirySettings).Item);
-//                return true;
-//            }
-//        }
-//
-//        [Test]
-//        public async Task ClientRequest_WithExpires_AddsToCache()
-//        {
-//            // arrange
-//            var state = new TestState();
-//            var expectedResponse = state.AddHttpRequest(1);
-//            expectedResponse.Content.Headers.Expires = DateTime.UtcNow.AddDays(1);
-//
-//            // act
-//            var response = await state.ExecuteRequest();
-//
-//            // assert
-//            Predicate<Tuple<string, CachedValues>> assert = AssertResult;
-//            state.Dependencies
-//                .Verify(x => x.Cache.Put(Match.Create(assert)), Times.Once);
-//
-//            bool AssertResult(Tuple<string, CachedValues> input)
-//            {
-//                CustomAssert.AssertDateAlmost(
-//                    expectedResponse.Content.Headers.Expires.Value.UtcDateTime, 
-//                    ((Headers.CacheSettings.ExpirySettings.Soft)input.Item2.CacheSettings.ExpirySettings).Item.MustRevalidateAtUtc);
-//
-//                return true;
-//            }
-//        }
-//
-//        [Test]
-//        public async Task ClientRequest_WithExpiresInThePast_StillCaches()
-//        {
-//            // arrange
-//            var state = new TestState();
-//            var expectedResponse = state.AddHttpRequest(1);
-//            expectedResponse.Content.Headers.Expires = DateTime.UtcNow.AddDays(-1);
-//
-//            // act
-//            var response = await state.ExecuteRequest();
-//
-//            // assert
-//            state.Dependencies
-//                .Verify(x => x.Cache.Put(It.IsAny<Tuple<string, CachedValues>>()), Times.Once);
-//        }
-//        
-//        [Test]
-//        public async Task ClientRequest_WithNoHeadersOrCache_ChecksCacheFirst()
-//        {
-//            // arrange
-//            var state = new TestState();
-//            state.AddHttpRequest(1);
-//
-//            // act
-//            var response = await state.ExecuteRequest();
-//
-//            // assert
-//            Predicate<string> assert = AssertResult;
-//            state.Dependencies
-//                .Verify(x => x.Cache.Get(It.IsAny<string>()), Times.Once);
-//            state.Dependencies
-//                .Verify(x => x.Cache.Get(Match.Create(assert)), Times.Once);
-//
-//            bool AssertResult(string input)
-//            {
-//                Assert.AreEqual("G$:$:http://www.com/", input);
-//                return true;
-//            }
-//        }
+
+[<Test>]
+let ``Client request, With expires, adds to cache`` () =
+        
+    // arrange
+    let (_, state, expectedResponse) =
+        TestState.build()
+        |> TestState.mockHttpRequest TestState.HttpRequestMock.value
+        
+    expectedResponse.Headers.CacheControl <- CacheControlHeaderValue()
+    expectedResponse.Content.Headers.Expires <- DateTimeOffset.UtcNow.AddDays(1.0) |> asNullable
+
+    // act
+    let (mocks, response) =
+        state
+        |> TestUtils.executeRequest TestUtils.ExecuteRequestArgs.value
+
+    // assert
+    async {
+        let! _ = response
+        
+        Mock.Mock.verifyPut (fun (key, _, values) ->
+            Assert.AreEqual("G$:$:http://www.com/", key)
+            
+            match values.CacheSettings.ExpirySettings with
+            | Some x ->
+                assertDateAlmost expectedResponse.Content.Headers.Expires.Value.UtcDateTime x.MustRevalidateAtUtc
+                match x.Validator with
+                | Validator.ExpirationDateUtc d ->
+                    Assert.AreEqual (x.MustRevalidateAtUtc, d)
+                | _ -> Assert.Fail()
+            | _ -> Assert.Fail()
+            
+            true
+        ) mocks
+        |> assertEqual 1
+        
+        return ()
+    } |> TestUtils.asTask
+
+[<Test>]
+let ``Client request, With expires in the past, still caches`` () =
+        
+    // arrange
+    let (_, state, expectedResponse) =
+        TestState.build()
+        |> TestState.mockHttpRequest TestState.HttpRequestMock.value
+        
+    expectedResponse.Headers.CacheControl <- CacheControlHeaderValue()
+    expectedResponse.Content.Headers.Expires <- DateTimeOffset.UtcNow.AddDays(-1.0) |> asNullable
+
+    // act
+    let (mocks, response) =
+        state
+        |> TestUtils.executeRequest TestUtils.ExecuteRequestArgs.value
+
+    // assert
+    async {
+        let! _ = response
+        
+        Mock.Mock.verifyPut (fun _ -> true) mocks
+        |> assertEqual 1
+        
+        return ()
+    } |> TestUtils.asTask
+
+[<Test>]
+let ``Client request, With no headers or cache, checks cache first`` () =
+        
+    // arrange
+    let (_, state, expectedResponse) =
+        TestState.build()
+        |> TestState.mockHttpRequest TestState.HttpRequestMock.value
+
+    // act
+    let (mocks, response) =
+        state
+        |> TestUtils.executeRequest TestUtils.ExecuteRequestArgs.value
+
+    // assert
+    async {
+        let! _ = response
+        
+        Mock.Mock.verifyGet (fun _ -> true) mocks
+        |> assertEqual 1
+        
+        return ()
+    } |> TestUtils.asTask

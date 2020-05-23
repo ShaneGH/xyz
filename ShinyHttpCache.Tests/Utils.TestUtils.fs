@@ -21,7 +21,7 @@ module ExecuteRequestArgs =
         }
         
     let setUrl url x = { x with url = url  }
-    let setUser user x = { x with user = user  }
+    let setUser user x = { x with user = Some user  }
 open ExecuteRequestArgs
     
 let executeRequest args (state: ICachingHttpClientDependenciesMethods) =
