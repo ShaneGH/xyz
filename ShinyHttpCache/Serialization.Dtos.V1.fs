@@ -72,42 +72,27 @@ let fromValidatorDto x =
     | 'b', None -> "Expected etag to have a value" |> invalidOp
     | x, _ -> sprintf "Invalid Validator type: '%c'" x |> invalidOp
 
-type RevalidationSettingsDto = 
+type ReValidationSettingsDto = 
     {
         MustRevalidateAtUtc: DateTime
         Validator: ValidatorDto
     }
 
-//type ExpirySettingsDto =
-//    {
-//        Type: char
-//        Soft: RevalidationSettingsDto option
-//        HardUtc: Nullable<DateTime>
-//    }
+let toReValidationSettingsDto (x: CacheSettings.RevalidationSettings) =
+    {
+        MustRevalidateAtUtc = x.MustRevalidateAtUtc
+        Validator = toValidatorDto x.Validator
+    }
 
-let toReValidationSettingsDto = function
-    | NoExpiryDate -> None
-    | Soft x -> 
-        {
-            MustRevalidateAtUtc = x.MustRevalidateAtUtc
-            Validator = toValidatorDto x.Validator
-        } |> Some
-
-let fromReValidationSettingsDto (x: RevalidationSettingsDto option) =
-    match x with
-    | Some x ->
-        let s =
-            {
-                MustRevalidateAtUtc = x.MustRevalidateAtUtc
-                Validator = fromValidatorDto x.Validator
-            } : CacheSettings.RevalidationSettings
-        
-        CacheSettings.Soft s
-    | None -> CacheSettings.NoExpiryDate
+let fromReValidationSettingsDto (x: ReValidationSettingsDto) =
+    {
+        MustRevalidateAtUtc = x.MustRevalidateAtUtc
+        Validator = fromValidatorDto x.Validator
+    } : CacheSettings.RevalidationSettings
 
 type CacheSettingsDto =
     {
-        ExpirySettings: RevalidationSettingsDto option
+        ExpirySettings: ReValidationSettingsDto option
         SharedCache: bool
     }
 
@@ -121,13 +106,13 @@ type CacheValuesDto =
 let toCacheSettingsDto (x: CacheSettings) = 
     {
         SharedCache = x.SharedCache
-        ExpirySettings = toReValidationSettingsDto x.ExpirySettings
+        ExpirySettings = Option.map toReValidationSettingsDto x.ExpirySettings
     }
 
 let fromCacheSettingsDto (x: CacheSettingsDto) = 
     {
         SharedCache = x.SharedCache
-        ExpirySettings = fromReValidationSettingsDto x.ExpirySettings
+        ExpirySettings = Option.map fromReValidationSettingsDto x.ExpirySettings
     } : CacheSettings
 
 let private version = (typedefof<CacheValuesDto>).Assembly.GetName().Version

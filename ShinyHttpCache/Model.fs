@@ -39,14 +39,9 @@ module CacheSettings =
             Validator: Validator
         }
 
-    type ExpirySettings =
-        | NoExpiryDate
-        // TODO: rename. There is no Hard anymore
-        | Soft of RevalidationSettings
-
     type CacheSettings =
         {
-            ExpirySettings: ExpirySettings
+            ExpirySettings: RevalidationSettings option
             SharedCache: bool
         }
        
@@ -109,7 +104,7 @@ module CacheSettings =
                     {
                         MustRevalidateAtUtc = DateTime.UtcNow
                         Validator = ETag x
-                    } |> Soft 
+                    } |> Some 
             } |> Some
         | false, false, None, Some x-> 
             {
@@ -118,7 +113,7 @@ module CacheSettings =
                     {
                         MustRevalidateAtUtc = x
                         Validator = ExpirationDateUtc x
-                    } |> Soft 
+                    } |> Some
             } |> Some
         | false, false, Some x, Some y-> 
             {
@@ -127,13 +122,13 @@ module CacheSettings =
                     {
                         MustRevalidateAtUtc = y
                         Validator = Both (x, y)
-                    } |> Soft 
+                    } |> Some
             } |> Some
         // TODO: move this to higher priority when https://tools.ietf.org/html/rfc8246 becomes "Proposed Standard"
         | false, true, _, _ ->
             {
                 SharedCache = sharedCache
-                ExpirySettings = NoExpiryDate
+                ExpirySettings = None
             } |> Some
 
 type CachedValues =

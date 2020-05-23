@@ -150,9 +150,9 @@ module private Private =
     let sendHttpRequest (request, token) (cacheResult: CachedValues) =
         let cacheBehavior =
             match cacheResult.CacheSettings.ExpirySettings with
-            | NoExpiryDate -> Resp cacheResult
-            | Soft s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult
-            | Soft s ->
+            | None -> Resp cacheResult
+            | Some s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult
+            | Some s ->
                 addValidationHeaders request s.Validator
                 ReqWithValidation (request, cacheResult, getValidationReason s.Validator)
 
