@@ -19,6 +19,7 @@
     <Compile Include="Utils.TestState.fs" />
     <Compile Include="Utils.TestUtils.fs" />
     <Compile Include="Utils.AssertUtils.fs" />
+    <Compile Include="ModelTests.fs" />
     <Compile Include="CacheReadTests.fs" />
     <Compile Include="CacheValidationTests.fs" />
     <Compile Include="CacheWriteTests.fs" />
