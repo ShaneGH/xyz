@@ -46,8 +46,6 @@ module CacheSettings =
             ExpirySettings: ReValidationSettings option
             SharedCache: bool
         }
-       
-    let private hasImmutable = Regex("immutable", RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
 
     let buildCacheSettings (response: HttpResponseMessage) = 
 
@@ -59,7 +57,12 @@ module CacheSettings =
         let immutable =
             match response.Headers.CacheControl with
             | null -> false
-            | x when hasImmutable.IsMatch (x.ToString()) -> true
+            | xs when xs.Extensions <> null ->
+                xs.Extensions
+                |> Seq.filter (fun x -> x.Name = "immutable")
+                |> Seq.map (fun _ -> true)
+                |> Seq.tryHead
+                |> Option.defaultValue false
             | _ -> false
 
         let noStore =
