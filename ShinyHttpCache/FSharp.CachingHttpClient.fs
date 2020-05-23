@@ -151,9 +151,7 @@ module private Private =
         let cacheBehavior =
             match cacheResult.CacheSettings.ExpirySettings with
             | NoExpiryDate -> Resp cacheResult
-            | HardUtc exp when exp > DateTime.UtcNow -> Resp cacheResult
             | Soft s when s.MustRevalidateAtUtc > DateTime.UtcNow -> Resp cacheResult
-            | HardUtc _ -> Req request
             | Soft s ->
                 addValidationHeaders request s.Validator
                 ReqWithValidation (request, cacheResult, getValidationReason s.Validator)
@@ -214,8 +212,14 @@ module private Private =
 
             let shouldCache (model: CachedValues) =
                 match model.CacheSettings.ExpirySettings with
-                | HardUtc x when x > DateTime.UtcNow -> None
-                | _ -> Some () 
+                | _ -> Some ()
+                // TODO: this function used to be:
+                // Either
+                // 1. remove it
+                // 2. add more checks (e.g. where are the checks for no-cache, no-store etc?)
+//                match model.CacheSettings.ExpirySettings with
+//                | HardUtc x when x > DateTime.UtcNow -> None
+//                | _ -> Some () 
 
             let addToCache (model: CachedValues) =
                 

@@ -41,8 +41,8 @@ module CacheSettings =
 
     type ExpirySettings =
         | NoExpiryDate
+        // TODO: rename. There is no Hard anymore
         | Soft of RevalidationSettings
-        | HardUtc of DateTime
 
     type CacheSettings =
         {
