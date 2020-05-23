@@ -67,7 +67,7 @@ let ``Client request, With max-age, adds to cache`` () =
             
             CollectionAssert.AreEqual([|33|], content)
             match values.CacheSettings.ExpirySettings with
-            | ExpirySettings.Soft x ->
+            | Some x ->
                 assertDateAlmost (DateTime.UtcNow.AddDays(1.0)) x.MustRevalidateAtUtc
                 match x.Validator with
                 | Validator.ExpirationDateUtc d ->
