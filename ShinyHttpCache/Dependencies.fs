@@ -6,11 +6,18 @@ open System.Threading
 open ShinyHttpCache.Model
 open ShinyHttpCache.Serialization.HttpResponseValues
 
+// TODO: add add a C# version
+type CacheMetadata =
+    {
+        CacheSettings: CacheSettings.CacheSettings
+        GetRawContent: Unit -> byte array Async
+    }
+
 // TODO: need CacnellationToken on all of these methods
 type ICache =
     abstract member Get : key: string -> Stream option Async
     //TODO: replace Unit with the unserialized version of the stream
-    abstract member Put : key: string -> cacheSettings: CacheSettings.CacheSettings -> serializedCacheData: Stream -> unit Async
+    abstract member Put : key: string -> serializedCacheData: Stream -> metadata: CacheMetadata -> unit Async
     abstract member Delete : key: string -> unit Async
     abstract member BuildUserKey : CachedRequest -> string option
 
@@ -54,10 +61,10 @@ let get cache key =
         return result
     }
     
-let put cache key cacheData serializedCacheData =
+let put cache key serializedCacheData cacheMetaData =
     match cache with
     | CachingHttpClientDependencies x -> async {
-        let! _ = x.Cache.Put key cacheData serializedCacheData
+        let! _ = x.Cache.Put key serializedCacheData cacheMetaData
         return ()
     }
     

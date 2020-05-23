@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.Net.Http
 open System.Threading
+open ShinyHttpCache
 open ShinyHttpCache.Dependencies
 open ShinyHttpCache.Model
 open ShinyHttpCache.Serialization.HttpResponseValues
@@ -47,7 +48,7 @@ let private execute x m =
 type ICachingHttpClientDependenciesMethods =
     {
         get: Mock<string, Stream option Async>
-        put: Mock<(string * CacheSettings.CacheSettings * Stream), Unit Async>
+        put: Mock<(string * Stream * Dependencies.CacheMetadata), Unit Async>
         delete: Mock<string, Unit Async>
         buildUserKey: Mock<CachedRequest, string option>
         send: Mock<(HttpRequestMessage * CancellationToken), HttpResponseMessage Async>
@@ -81,6 +82,21 @@ module Mock =
     let buildUserKey = mockMethod (fun x -> x.buildUserKey) (fun x y -> { x with buildUserKey = y })
     let send = mockMethod (fun x -> x.send) (fun x y -> { x with send = y })
     
+    let private asyncMap f x = async {
+        let! x = x
+        let y = f x
+        return y
+    }
+    
+    let private verifyAsync getter f mock =
+        mock.CacheMethods
+        |> getter
+        |> (fun x -> x.calls)
+        |> List.map f
+        |> Async.Parallel
+        |> asyncMap (Array.filter id)
+        |> asyncMap (Array.length)
+    
     let private verify getter f mock =
         mock.CacheMethods
         |> getter
@@ -90,6 +106,7 @@ module Mock =
         
     let verifyGet = verify (fun x -> x.get)
     let verifyPut = verify (fun x -> x.put)
+    let verifyPutAsync = verifyAsync (fun x -> x.put)
     let verifyDelete = verify (fun x -> x.delete)
     let verifyBuildUserKey = verify (fun x -> x.buildUserKey)
     let verifySend = verify (fun x -> x.send)

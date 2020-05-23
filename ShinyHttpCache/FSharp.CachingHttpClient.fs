@@ -218,13 +218,20 @@ module private Private =
                 | _ -> Some () 
 
             let addToCache (model: CachedValues) =
+                
                 let cache key =
                     let cachePut (k, ()) = async {
                         use! strm = 
                             Serializer.serialize model
                             |> asyncMap (fun (_, strm) -> strm)
 
-                        return! put cache k model.CacheSettings (Disposables.getValue strm)
+                        let metadata =
+                            {
+                                CacheSettings = model.CacheSettings
+                                GetRawContent = model.HttpResponse.Content.ReadAsByteArrayAsync >> Async.AwaitTask
+                            } : Dependencies.CacheMetadata
+
+                        return! put cache k (Disposables.getValue strm) metadata
                     }
 
                     shouldCache model

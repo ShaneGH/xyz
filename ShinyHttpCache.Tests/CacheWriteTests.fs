@@ -2,6 +2,7 @@ module ShinyHttpCache.Tests.CacheWriteTests
 
 open System.Net.Http.Headers
 open ShinyHttpCache.Model
+open ShinyHttpCache.Model.CacheSettings
 open ShinyHttpCache.Tests.Utils.AssertUtils
 open System
 open NUnit.Framework
@@ -42,7 +43,7 @@ let ``Client request, With max-age, adds to cache`` () =
     // arrange
     let req =
         TestState.HttpRequestMock.value
-        |> TestState.HttpRequestMock.setResponseContent 2
+        |> TestState.HttpRequestMock.setResponseContent 33
         
     let (_, state, expectedResponse) =
         TestState.build()
@@ -60,17 +61,20 @@ let ``Client request, With max-age, adds to cache`` () =
     async {
         let! _ = response
         
-        Mock.Mock.verifyPut (fun (key, values, _) ->
+        do! (Mock.Mock.verifyPutAsync (fun (key, _, values) -> async {
             Assert.AreEqual("G$:$:http://www.com/", key)
-            assertContent 2 values.
-//                CustomAssert.AssertCachedResponse(1, input.Item2.HttpResponse);
-//                CustomAssert.AssertDateAlmost(
-//                    DateTime.UtcNow.AddDays(1), 
-//                    ((Headers.CacheSettings.ExpirySettings.HardUtc)input.Item2.CacheSettings.ExpirySettings).Item);
-//                return true;
-            true
+            let! content = values.GetRawContent()
+            
+            CollectionAssert.AreEqual([|33|], content)
+            match values.CacheSettings.ExpirySettings with
+            | ExpirySettings.HardUtc x ->
+                assertDateAlmost (DateTime.UtcNow.AddDays(1.0)) x
+            | _ -> Assert.Fail()
+            
+            return true
+        }
         ) mocks
-        |> assertEqual 1
+        |> asyncMap (assertEqual 1))
         
         return ()
     } |> TestUtils.asTask

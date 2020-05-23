@@ -41,3 +41,9 @@ let executeRequest args (state: ICachingHttpClientDependenciesMethods) =
 let asTask x = Async.StartAsTask x |> (fun x -> x :> Task)
 
 let asNullable x = Nullable<'a>(x)
+
+let asyncMap f x = async {
+    let! x = x
+    let y = f x
+    return y
+}

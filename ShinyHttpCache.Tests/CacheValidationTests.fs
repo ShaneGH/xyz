@@ -33,16 +33,16 @@ let ``Client request, With strong eTag, caches correctly`` () =
     async {
         let! _ = response
         
-        Mock.Mock.verifyPut (fun (_, settings, _) ->
+        Mock.Mock.verifyPut (fun (_, _, settings) ->
             let assertExpiry () =
-                match settings.ExpirySettings with
+                match settings.CacheSettings.ExpirySettings with
                 | CacheSettings.Soft x ->
                     assertDateAlmost DateTime.UtcNow x.MustRevalidateAtUtc
                     true
                 | _ -> false
                 
             let assertEtag () =
-                match settings.ExpirySettings with
+                match settings.CacheSettings.ExpirySettings with
                 | CacheSettings.Soft x ->
                     match x.Validator with
                     | CacheSettings.ETag e ->
@@ -82,16 +82,16 @@ let ``Client request, With weak eTag, caches correctly`` () =
     async {
         let! _ = response
         
-        Mock.Mock.verifyPut (fun (_, settings, _) ->
+        Mock.Mock.verifyPut (fun (_, _, settings) ->
             let assertExpiry () =
-                match settings.ExpirySettings with
+                match settings.CacheSettings.ExpirySettings with
                 | CacheSettings.Soft x ->
                     assertDateAlmost DateTime.UtcNow x.MustRevalidateAtUtc
                     true
                 | _ -> false
                 
             let assertEtag () =
-                match settings.ExpirySettings with
+                match settings.CacheSettings.ExpirySettings with
                 | CacheSettings.Soft x ->
                     match x.Validator with
                     | CacheSettings.ETag e ->
@@ -131,10 +131,10 @@ let ``Client request, With expires, caches correctly`` () =
     async {
         let! _ = r
         
-        Mock.Mock.verifyPut (fun (_, settings, _) ->
+        Mock.Mock.verifyPut (fun (_, _, settings) ->
                 
             let assertExpiry () =
-                match settings.ExpirySettings with
+                match settings.CacheSettings.ExpirySettings with
                 | CacheSettings.Soft x ->
                     match x.Validator with
                     | CacheSettings.ExpirationDateUtc e ->
@@ -175,9 +175,9 @@ let ``Client request, With expires in the past and eTag, caches correctly`` () =
     async {
         let! _ = r
         
-        Mock.Mock.verifyPut (fun (_, settings, _) ->
+        Mock.Mock.verifyPut (fun (_, _, settings) ->
             let assertExpiry () =
-                match settings.ExpirySettings with
+                match settings.CacheSettings.ExpirySettings with
                 | CacheSettings.Soft x ->
                     // ensure that correct expires is used
                     assertDateAlmost response.Content.Headers.Expires.Value.UtcDateTime x.MustRevalidateAtUtc
@@ -185,7 +185,7 @@ let ``Client request, With expires in the past and eTag, caches correctly`` () =
                 | _ -> false
                 
             let assertEtag () =
-                match settings.ExpirySettings with
+                match settings.CacheSettings.ExpirySettings with
                 | CacheSettings.Soft x ->
                     match x.Validator with
                     | CacheSettings.Both (e, dt) ->
@@ -278,7 +278,7 @@ let ``Client request, With weak etag, server returns 304, constructs response co
         do! assertContent 4 r
         
         Mock.Mock.verifyPut (fun _ -> true) mocks
-        |> assertEqual 1
+        |> assertEqual 0
         
         Assert.AreEqual("server value", r.Headers.GetValues("x-custom-header").First())
         
@@ -312,8 +312,8 @@ let ``Client request, With weak eTag, Server returns another eTag, Caches correc
         
         Assert.AreEqual("server value", r.Headers.GetValues("x-custom-header").First())
         
-        Mock.Mock.verifyPut (fun (_, settings, _) ->
-            match settings.ExpirySettings with
+        Mock.Mock.verifyPut (fun (_, _, settings) ->
+            match settings.CacheSettings.ExpirySettings with
             | CacheSettings.Soft x ->
                 match x.Validator with
                 | CacheSettings.ETag t
