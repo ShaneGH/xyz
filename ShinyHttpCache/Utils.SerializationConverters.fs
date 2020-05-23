@@ -134,14 +134,17 @@ module RecordTypes =
             
 module Options =
 
-    type private ReferenceTypeConverter<'a when 'a : null>() =
-        inherit JsonConverter<'a option>()
-        
-        override __.Read(reader, typeToConvert, options) =
+    module ReferenceTypeUtils =
+        let read (reader: byref<Utf8JsonReader>) options =
             let result = JsonSerializer.Deserialize(&reader, typedefof<'a>, options) :?> 'a
             match result with
             | null -> None
             | x -> Some x
+
+    type private ReferenceTypeConverter<'a when 'a : null>() =
+        inherit JsonConverter<'a option>()
+        
+        override __.Read(reader, _, options) = ReferenceTypeUtils.read &reader options
 
         override __.Write(writer, value, options) =
             match value with
