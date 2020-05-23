@@ -4,18 +4,12 @@ open System
 open System.Collections.Generic
 open System.Net
 open System.Net.Http
+open ShinyHttpCace.Utils
 open ShinyHttpCache.Utils
 open ShinyHttpCache.Utils
 
 module private Private = 
     let toCSharpList (seq: 'a seq) = List<'a> seq
-
-    let asyncReturn x = async { return x }
-    
-    let asyncMap f x = async { 
-        let! x1 = x
-        return (f x1) 
-    }
 
     let mapHeaderKvp (kvp: KeyValuePair<string, IEnumerable<'a>>) =
         new KeyValuePair<string, List<'a>>(kvp.Key, toCSharpList kvp.Value)
@@ -25,8 +19,8 @@ module private Private =
         | x -> Some x
 
     let invertOpt = function
-        | None -> asyncReturn None
-        | Some x -> asyncMap Some x
+        | None -> Infra.Async.retn None
+        | Some x -> Infra.Async.map Some x
 
 open Private
 
@@ -78,7 +72,7 @@ let buildCachedRequest (req: HttpRequestMessage) =
     |> toOption
     |> Option.map buildCachedContent
     |> invertOpt
-    |> asyncMap (fun c -> {
+    |> Infra.Async.map (fun c -> {
         Version = SerializableVersion.fromSemanticVersion req.Version;
         Method = req.Method.Method;
         Uri = req.RequestUri;

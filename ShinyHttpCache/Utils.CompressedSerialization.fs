@@ -1,5 +1,6 @@
 ﻿module ShinyHttpCache.Utils.CompressedSerialization
 open Microsoft.FSharp.Reflection
+open ShinyHttpCace.Utils
 open ShinyHttpCache.Utils
 open System
 open System.IO
@@ -171,16 +172,6 @@ module Converters =
                 :?> JsonConverter
 
 module private Private =
-    let asyncMap f x = async { 
-        let! x1 = x; 
-        return (f x1) 
-    }
-    
-    let asyncBind f x = async { 
-        let! x1 = x; 
-        return! (f x1) 
-    }
-
     let private gzip (mode: CompressionMode) (stream: Disposables.Disposables<Stream>) = 
         let ms = new MemoryStream()
         let gz = new GZipStream(ms, mode)
@@ -239,10 +230,10 @@ let serialize<'a> (dto: 'a) =
     let ms = new MemoryStream() :> Stream
     JsonSerializer.SerializeAsync(ms, dto, typedefof<'a>, buildSerializationOptions false, Unchecked.defaultof<CancellationToken>)
     |> Async.AwaitTask
-    |> asyncMap (fun _ ->
+    |> Infra.Async.map (fun _ ->
         ms.Position <- 0L
         Disposables.buildFromDisposable ms [])
-    |> asyncBind compress
+    |> Infra.Async.bind compress
 
 let deserialize<'a> s =
 

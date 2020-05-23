@@ -2,12 +2,7 @@ module ShinyHttpCache.Tests.Utils.AssertUtils
 open System
 open System.Net.Http
 open NUnit.Framework
-open Newtonsoft.Json.Converters
-
-let private asyncMap f x = async {
-    let! x' = x
-    return (f x')
-} 
+open ShinyHttpCace.Utils
 
 let assertEqual expected actual = Assert.AreEqual(expected, actual)
 
@@ -25,7 +20,7 @@ let assertValue (opt: 'a option) =
         Assert.Fail("Expected option to have value")
         Unchecked.defaultof<'a>
 
-let assertValueAsync x = asyncMap assertValue x
+let assertValueAsync x = Infra.Async.map assertValue x
 
 /// <summary>Assert that 2 date times are within 5 seconds of each other</summary>
 let assertDateAlmost (expected: DateTime) (actual: DateTime) =

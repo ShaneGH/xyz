@@ -1,19 +1,11 @@
 ﻿module ShinyHttpCache.Serialization.Versioned
+open ShinyHttpCace.Utils
 open ShinyHttpCache.Utils.Disposables
 open ShinyHttpCache.Serialization
 open System.IO
 open System
 
 module private Private =
-    let asyncMap f x = async { 
-        let! x1 = x; 
-        return (f x1) 
-    }
-    
-    let asyncBind f x = async { 
-        let! x1 = x; 
-        return! (f x1) 
-    }
 
     let getVersion (s: Stream) =
         match s.Length with
@@ -22,7 +14,7 @@ module private Private =
             let bytes = Array.create 4 Unchecked.defaultof<byte>
             s.ReadAsync(bytes, 0, 4)
             |> Async.AwaitTask
-            |> asyncMap (fun _ ->
+            |> Infra.Async.map (fun _ ->
                 let major = System.BitConverter.ToUInt16(bytes, 0)
                 let minor = System.BitConverter.ToUInt16(bytes, 2)
                 ((major, minor), s))
@@ -31,7 +23,7 @@ module private Private =
         | (1us, 0us)
         | (1us, _) -> 
             Deserailizers.V1.deserialize
-            >> asyncMap Dtos.V1.fromDto
+            >> Infra.Async.map Dtos.V1.fromDto
         // TODO: handle more gracefully (warn and return cache miss rather than throw)
         // TODO: better message, include current dll version + supported serializer versions
         | (major, minor) -> sprintf "Invalid serialized version %d.%d" major minor |> invalidOp
@@ -42,11 +34,11 @@ module private Private =
         let v = Array.concat [|BitConverter.GetBytes major;BitConverter.GetBytes minor|]
 
         ms.AsyncWrite(v, 0, 4)
-        |> asyncBind (fun _ ->
+        |> Infra.Async.bind (fun _ ->
             streamAsync (fun (s: Stream) -> s.CopyToAsync(ms)) s)
-        |> asyncBind (fun _ ->
+        |> Infra.Async.bind (fun _ ->
             streamAsync (fun (s: Stream) -> s.FlushAsync()) s)
-        |> asyncMap (fun _ ->
+        |> Infra.Async.map (fun _ ->
             ms.Position <- 0L
             combine str s)
 
@@ -57,8 +49,8 @@ open Private
 
 let serialize =
     Serializer.serialize
-    >> asyncBind (fun (v, stream) -> prependVersion v stream)
+    >> Infra.Async.bind (fun (v, stream) -> prependVersion v stream)
 
 let deserialize s =
     getVersion s
-    |> asyncBind (fun (v, s) -> getDeserializer v s)
+    |> Infra.Async.bind (fun (v, s) -> getDeserializer v s)

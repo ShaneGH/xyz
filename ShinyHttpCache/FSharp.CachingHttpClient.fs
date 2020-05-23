@@ -4,6 +4,7 @@ open System
 open System.Net.Http.Headers
 open System.Net.Http
 open System.Threading
+open ShinyHttpCace.Utils
 open ShinyHttpCache
 open ShinyHttpCache.Dependencies
 open ShinyHttpCache.Serialization.HttpResponseValues
@@ -27,59 +28,26 @@ open ShinyHttpCache.Utils
 // Last-Modified
 
 module private Private =
-
-
     let private getMethodKey (method: HttpMethod) =
         match method with
-        | x when x = HttpMethod.Get -> "G"
+        | x when x = HttpMethod.Get -> Some "G"
         // TODO, more methods (especially put with etag)
-        | _ -> NotSupportedException "Only GET methods are supported for caching" |> raise
+        | _ -> None
         
     let buildUserCacheKey method (uri: Uri) (userKey: string) =
         // TODO: include http method
         // TODO: allow custom key build method (e.g. to include headers)
         let userKey = if String.IsNullOrEmpty userKey then "" else userKey
-        let m = getMethodKey method
-
-        sprintf "%s$:%s$:%O"
-        <| m
-        <| userKey.Replace("$", "$$")
-        <| uri
+        
+        getMethodKey method
+        |> Option.map (fun m ->
+            sprintf "%s$:%s$:%O"
+            <| m
+            <| userKey.Replace("$", "$$")
+            <| uri)
 
     let buildSharedCacheKey method (uri: Uri) = buildUserCacheKey method uri ""
-
-    let traverseAsyncOpt input =
-        async {
-            match input with
-            | Some x -> 
-                let! x1 = x
-                return Some x1
-            | None -> return None 
-        }
-
-    let squashOptions = function
-        | Some x -> 
-            match x with
-            | Some y -> Some y
-            | None -> None
-        | None -> None
-
-    let asyncMap f x =
-        async {
-            let! x1 = x
-            return f x1
-        }
-
-    let asyncBind f x =
-        async {
-            let! x1 = x
-            return! f x1
-        }
-
-    let asyncRetn x = async { return x }
-
-    let asyncUnit = asyncRetn ()
-
+    
     let tryGetCacheResult req =
         let execute (cache: CachingHttpClientDependencies) =
             let userKey = buildUserKey cache req
@@ -87,14 +55,16 @@ module private Private =
             let reqMethod = HttpMethod(req.Method)
             let userResult = 
                 userKey 
-                |> Option.map (buildUserCacheKey reqMethod req.Uri)
+                |> Option.bind (buildUserCacheKey reqMethod req.Uri)
                 |> Option.map (get cache)
-                |> traverseAsyncOpt
-                |> asyncMap squashOptions
+                |> Infra.AsyncOpt.traverse
+                |> Infra.Async.map Infra.Option.squash
 
             let sharedResult = 
                 buildSharedCacheKey reqMethod req.Uri
-                |> get cache
+                |> Option.map (get cache)
+                |> Infra.AsyncOpt.traverse
+                |> Infra.Async.map Infra.Option.squash
 
             async {
                 let! usr = userResult
@@ -157,17 +127,17 @@ module private Private =
             match cacheBehavior with
             | Resp x -> 
                 FromCache x
-                |> asyncRetn
+                |> Infra.Async.retn
             | ReqWithValidation (req, cachedResp, strongValidation) ->
                 send cache req token
-                |> asyncMap (fun resp -> (cachedResp, resp, strongValidation))
-                |> asyncMap Hybrid
+                |> Infra.Async.map (fun resp -> (cachedResp, resp, strongValidation))
+                |> Infra.Async.map Hybrid
             | Req x ->
                 send cache x token
-                |> asyncMap FromServer
+                |> Infra.Async.map FromServer
         
         execute
-        >> asyncMap Some
+        >> Infra.Async.map Some
         |> Reader.Reader
 
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching
@@ -199,13 +169,12 @@ module private Private =
                 match isPublic with
                 | false ->
                     buildUserKey cache
-                    >> Option.map (buildUserCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri)
-                    |> asyncMap
+                    >> Option.bind (buildUserCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri)
+                    |> Infra.Async.map
                     <| req
                 | true ->
                     buildSharedCacheKey response.RequestMessage.Method response.RequestMessage.RequestUri
-                    |> Some
-                    |> asyncRetn
+                    |> Infra.Async.retn
 
             let shouldCache (model: CachedValues) =
                 match model.CacheSettings.ExpirySettings with
@@ -224,7 +193,7 @@ module private Private =
                     let cachePut (k, ()) = async {
                         use! strm = 
                             Serializer.serialize model
-                            |> asyncMap (fun (_, strm) -> strm)
+                            |> Infra.Async.map (fun (_, strm) -> strm)
 
                         let metadata =
                             {
@@ -238,14 +207,14 @@ module private Private =
                     shouldCache model
                     |> combineOptions key
                     |> Option.map cachePut
-                    |> Option.defaultValue asyncUnit
+                    |> Option.defaultValue Infra.Async.unit
 
                 buildCacheKey model.CacheSettings.SharedCache
-                |> asyncBind cache
+                |> Infra.Async.bind cache
 
             build response 
             |> Option.map addToCache
-            |> traverseAsyncOpt
+            |> Infra.AsyncOpt.traverse
 
         Reader.Reader execute
         |> ReaderAsyncOption.map (fun () -> response)
@@ -257,12 +226,12 @@ module private Private =
     let toOption = function
         | x when isNull x -> None
         | x -> Some x
-        
-    let copyCacheHeaders (from: HttpContentHeaders) (``to``: HttpContentHeaders) =
-        ``to``.Expires <- from.Expires
-        ``to``.LastModified <- from.LastModified
 
     let combineCacheResult (cacheResponse, serviceResponse: HttpResponseMessage, isStrongValidation) =
+            
+        let copyCacheHeaders (from: HttpContentHeaders) (``to``: HttpContentHeaders) =
+            ``to``.Expires <- from.Expires
+            ``to``.LastModified <- from.LastModified
         
         match serviceResponse.StatusCode with
         | HttpStatusCode.NotModified ->
@@ -296,7 +265,7 @@ let client (httpRequest: HttpRequestMessage, cancellationToken: CancellationToke
         |> ReaderAsync.map FromServer
 
     buildCachedRequest httpRequest
-    |> asyncMap Some
+    |> Infra.Async.map Some
     |> Reader.retn
     |> ReaderAsyncOption.bind tryGetCacheResult
     |> ReaderAsyncOption.bind validateCachedResult

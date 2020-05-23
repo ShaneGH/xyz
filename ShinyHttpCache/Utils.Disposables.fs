@@ -4,10 +4,6 @@ open Private
 open System.Threading.Tasks
 
 module private Private =
-    let asyncMap f x = async { 
-        let! x1 = x; 
-        return (f x1) 
-    }
 
     let private getDisposables: IDisposables -> IDisposable list =
         let rec unwrap (disposable: IDisposable) =

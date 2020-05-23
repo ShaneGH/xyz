@@ -1,15 +1,9 @@
 ﻿module ShinyHttpCache.Serialization.Dtos.V1
 open System
+open ShinyHttpCace.Utils
 open ShinyHttpCache.Model
 open ShinyHttpCache.Serialization.HttpResponseValues
 open ShinyHttpCache.Utils
-
-module Private =
-    let asyncMap f x = async {
-        let! x' = x
-        return f x'
-    }
-open Private
 
 type EntityTagDto =
     {
@@ -117,7 +111,7 @@ let fromCacheSettingsDto (x: CacheSettingsDto) =
 let private version = (typedefof<CacheValuesDto>).Assembly.GetName().Version
 let toDto (x: CachedValues) =
     buildCachedResponse x.HttpResponse
-    |> asyncMap (fun resp ->
+    |> Infra.Async.map (fun resp ->
         {
             ShinyHttpCacheVersion = SerializableVersion.fromSemanticVersion version
             HttpResponse = resp

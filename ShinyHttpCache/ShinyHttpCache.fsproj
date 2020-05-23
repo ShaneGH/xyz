@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <!-- Utils -->
+    <Compile Include="Utils.Infra.fs" />
     <Compile Include="Utils.Disposables.fs" />
     <Compile Include="Utils.ReaderMonad.fs" />
     <Compile Include="Utils.CompressedSerialization.fs" />

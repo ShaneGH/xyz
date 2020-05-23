@@ -1,6 +1,7 @@
 module ShinyHttpCache.Tests.CacheWriteTests
 
 open System.Net.Http.Headers
+open ShinyHttpCace.Utils
 open ShinyHttpCache.Model
 open ShinyHttpCache.Tests.Utils.AssertUtils
 open System
@@ -65,7 +66,7 @@ let ``Client request, With max-age, adds to cache, verify content only`` () =
             CollectionAssert.AreEqual([|33|], content)
             return true
         }) mocks
-        |> asyncMap (assertEqual 1))
+        |> Infra.Async.map (assertEqual 1))
         
         return ()
     } |> TestUtils.asTask

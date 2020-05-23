@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.Net.Http
 open System.Threading
+open ShinyHttpCace.Utils
 open ShinyHttpCache
 open ShinyHttpCache.Dependencies
 open ShinyHttpCache.Model
@@ -82,20 +83,14 @@ module Mock =
     let buildUserKey = mockMethod (fun x -> x.buildUserKey) (fun x y -> { x with buildUserKey = y })
     let send = mockMethod (fun x -> x.send) (fun x y -> { x with send = y })
     
-    let private asyncMap f x = async {
-        let! x = x
-        let y = f x
-        return y
-    }
-    
     let private verifyAsync getter f mock =
         mock.CacheMethods
         |> getter
         |> (fun x -> x.calls)
         |> List.map f
         |> Async.Parallel
-        |> asyncMap (Array.filter id)
-        |> asyncMap (Array.length)
+        |> Infra.Async.map (Array.filter id)
+        |> Infra.Async.map (Array.length)
     
     let private verify getter f mock =
         mock.CacheMethods
