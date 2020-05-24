@@ -53,8 +53,8 @@ let private serializationOptions =
     let options = JsonSerializerOptions()
     options.IgnoreNullValues <- true
     
-    options.Converters.Add(SerializationConverters.RecordTypes.Factory())
-    options.Converters.Add(SerializationConverters.Options.Factory())
+    options.Converters.Add(SerializationConverters.RecordType.Factory())
+    options.Converters.Add(SerializationConverters.Option.Factory())
     options
 
 let serialize<'a> (dto: 'a) =
